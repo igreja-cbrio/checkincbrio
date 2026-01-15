@@ -3,25 +3,89 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Check } from 'lucide-react';
+import { Search, Check, UserPlus, AlertTriangle } from 'lucide-react';
 import type { ScheduleWithDetails } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 interface ManualCheckinProps {
   schedules: ScheduleWithDetails[];
   onCheckIn: (scheduleId: string) => void;
+  onUnscheduledCheckIn: (volunteerId: string, volunteerName: string) => void;
   isProcessing: boolean;
+  serviceId: string;
 }
 
-export function ManualCheckin({ schedules, onCheckIn, isProcessing }: ManualCheckinProps) {
+interface VolunteerProfile {
+  id: string;
+  full_name: string;
+  planning_center_id: string | null;
+}
+
+export function ManualCheckin({ 
+  schedules, 
+  onCheckIn, 
+  onUnscheduledCheckIn,
+  isProcessing,
+  serviceId,
+}: ManualCheckinProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAllVolunteers, setShowAllVolunteers] = useState(false);
+
+  // Get all volunteer profiles for unscheduled check-in
+  const { data: allVolunteers } = useQuery({
+    queryKey: ['profiles', 'volunteers'],
+    enabled: showAllVolunteers,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, planning_center_id')
+        .order('full_name');
+      
+      if (error) throw error;
+      return data as VolunteerProfile[];
+    },
+  });
+
+  // Get today's unscheduled check-ins to filter out already checked in
+  const { data: todayUnscheduledCheckIns } = useQuery({
+    queryKey: ['check-ins', 'unscheduled', 'today', serviceId],
+    enabled: showAllVolunteers && !!serviceId,
+    queryFn: async () => {
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+
+      const { data, error } = await supabase
+        .from('check_ins')
+        .select('volunteer_id')
+        .eq('service_id', serviceId)
+        .eq('is_unscheduled', true)
+        .gte('checked_in_at', startOfDay)
+        .lt('checked_in_at', endOfDay);
+      
+      if (error) throw error;
+      return data.map(c => c.volunteer_id);
+    },
+  });
 
   const filteredSchedules = schedules.filter(schedule =>
     schedule.volunteer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     schedule.team_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     schedule.position_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Get scheduled volunteer IDs to exclude from unscheduled list
+  const scheduledVolunteerIds = new Set(schedules.map(s => s.volunteer_id).filter(Boolean));
+  const alreadyCheckedInIds = new Set(todayUnscheduledCheckIns || []);
+
+  const unscheduledVolunteers = allVolunteers?.filter(v => 
+    !scheduledVolunteerIds.has(v.id) && 
+    !alreadyCheckedInIds.has(v.id) &&
+    v.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   return (
     <Card>
@@ -40,7 +104,8 @@ export function ManualCheckin({ schedules, onCheckIn, isProcessing }: ManualChec
         </div>
 
         <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-          {filteredSchedules.length === 0 ? (
+          {/* Scheduled volunteers */}
+          {filteredSchedules.length === 0 && !showAllVolunteers ? (
             <p className="text-sm text-muted-foreground text-center py-6">
               Nenhum voluntário encontrado
             </p>
@@ -79,7 +144,55 @@ export function ManualCheckin({ schedules, onCheckIn, isProcessing }: ManualChec
               </div>
             ))
           )}
+
+          {/* Divider for unscheduled section */}
+          {showAllVolunteers && unscheduledVolunteers.length > 0 && filteredSchedules.length > 0 && (
+            <div className="flex items-center gap-2 py-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                Sem escala
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+          )}
+
+          {/* Unscheduled volunteers */}
+          {showAllVolunteers && unscheduledVolunteers.map((volunteer) => (
+            <div
+              key={volunteer.id}
+              className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">{volunteer.full_name}</p>
+                <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 mt-1">
+                  Sem escala
+                </Badge>
+              </div>
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onUnscheduledCheckIn(volunteer.id, volunteer.full_name)}
+                disabled={isProcessing}
+                className="shrink-0 ml-2 border-amber-500 text-amber-600 hover:bg-amber-100"
+              >
+                Check-in
+              </Button>
+            </div>
+          ))}
         </div>
+
+        {/* Toggle to show unscheduled volunteers */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full"
+          onClick={() => setShowAllVolunteers(!showAllVolunteers)}
+        >
+          <UserPlus className="h-4 w-4 mr-2" />
+          {showAllVolunteers ? 'Ocultar voluntários sem escala' : 'Mostrar todos os voluntários'}
+        </Button>
       </CardContent>
     </Card>
   );

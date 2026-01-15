@@ -19,22 +19,31 @@ export type Database = {
           checked_in_at: string
           checked_in_by: string | null
           id: string
+          is_unscheduled: boolean
           method: string
-          schedule_id: string
+          schedule_id: string | null
+          service_id: string | null
+          volunteer_id: string | null
         }
         Insert: {
           checked_in_at?: string
           checked_in_by?: string | null
           id?: string
+          is_unscheduled?: boolean
           method: string
-          schedule_id: string
+          schedule_id?: string | null
+          service_id?: string | null
+          volunteer_id?: string | null
         }
         Update: {
           checked_in_at?: string
           checked_in_by?: string | null
           id?: string
+          is_unscheduled?: boolean
           method?: string
-          schedule_id?: string
+          schedule_id?: string | null
+          service_id?: string | null
+          volunteer_id?: string | null
         }
         Relationships: [
           {
@@ -42,6 +51,20 @@ export type Database = {
             columns: ["schedule_id"]
             isOneToOne: false
             referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

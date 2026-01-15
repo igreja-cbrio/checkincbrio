@@ -68,22 +68,33 @@ export function useMySchedules(userId: string | undefined) {
   });
 }
 
+interface CheckInParams {
+  scheduleId?: string;
+  volunteerId?: string;
+  serviceId?: string;
+  method: 'qr_code' | 'manual';
+  isUnscheduled?: boolean;
+}
+
 export function useCheckIn() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ 
       scheduleId, 
-      method 
-    }: { 
-      scheduleId: string; 
-      method: 'qr_code' | 'manual';
-    }) => {
+      volunteerId,
+      serviceId,
+      method,
+      isUnscheduled = false,
+    }: CheckInParams) => {
       const { data, error } = await supabase
         .from('check_ins')
         .insert({
-          schedule_id: scheduleId,
+          schedule_id: scheduleId || null,
+          volunteer_id: volunteerId || null,
+          service_id: serviceId || null,
           method,
+          is_unscheduled: isUnscheduled,
         })
         .select()
         .single();
@@ -93,17 +104,25 @@ export function useCheckIn() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['check-ins'] });
     },
   });
 }
 
+export interface QrCodeResult {
+  schedule?: any;
+  profile: { id: string; planning_center_id: string | null; full_name?: string };
+  isUnscheduled: boolean;
+  volunteerName: string;
+}
+
 export function useScheduleByQrCode() {
   return useMutation({
-    mutationFn: async (qrCode: string) => {
+    mutationFn: async (qrCode: string): Promise<QrCodeResult> => {
       // First find the profile with this QR code
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('id, planning_center_id')
+        .select('id, planning_center_id, full_name')
         .eq('qr_code', qrCode)
         .single();
       
@@ -128,8 +147,14 @@ export function useScheduleByQrCode() {
         .lt('service.scheduled_at', endOfDay);
       
       if (scheduleError) throw scheduleError;
+
+      // No schedule found for today - return as unscheduled
       if (!schedules || schedules.length === 0) {
-        throw new Error('Nenhuma escala encontrada para hoje');
+        return {
+          profile,
+          isUnscheduled: true,
+          volunteerName: profile.full_name || 'Voluntário',
+        };
       }
 
       // Check if already checked in
@@ -142,14 +167,53 @@ export function useScheduleByQrCode() {
         !existingCheckIns?.some(c => c.schedule_id === s.id)
       );
 
+      // All schedules checked in - also check for unscheduled check-in today
       if (!uncheckedSchedule) {
+        // Check if they already have an unscheduled check-in today
+        const { data: unscheduledCheckIn } = await supabase
+          .from('check_ins')
+          .select('*')
+          .eq('volunteer_id', profile.id)
+          .eq('is_unscheduled', true)
+          .gte('checked_in_at', startOfDay)
+          .lt('checked_in_at', endOfDay)
+          .maybeSingle();
+
+        if (unscheduledCheckIn) {
+          throw new Error('Voluntário já fez check-in hoje');
+        }
+
         throw new Error('Voluntário já fez check-in em todas as escalas de hoje');
       }
 
       return {
         schedule: uncheckedSchedule,
         profile,
+        isUnscheduled: false,
+        volunteerName: uncheckedSchedule.volunteer_name,
       };
+    },
+  });
+}
+
+export function useUnscheduledCheckIns(serviceId: string | undefined) {
+  return useQuery({
+    queryKey: ['check-ins', 'unscheduled', serviceId],
+    enabled: !!serviceId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('check_ins')
+        .select(`
+          *,
+          volunteer:profiles(id, full_name),
+          service:services(id, name, scheduled_at)
+        `)
+        .eq('service_id', serviceId)
+        .eq('is_unscheduled', true)
+        .order('checked_in_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
     },
   });
 }
