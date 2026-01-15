@@ -11,6 +11,7 @@ import CheckinPage from "./pages/CheckinPage";
 import MyQrCodePage from "./pages/MyQrCodePage";
 import SchedulesPage from "./pages/SchedulesPage";
 import ReportsPage from "./pages/ReportsPage";
+import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/my-qrcode" element={<MyQrCodePage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

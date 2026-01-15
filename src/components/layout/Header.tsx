@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
-  const { profile, isLeader, signOut } = useAuth();
+  const { profile, isLeader, isAdmin, signOut } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -16,6 +16,7 @@ export function Header() {
     { name: 'Check-in', href: '/checkin', show: isLeader },
     { name: 'Escalas', href: '/schedules', show: true },
     { name: 'Relatórios', href: '/reports', show: isLeader },
+    { name: 'Admin', href: '/admin', show: isAdmin },
   ].filter(item => item.show);
 
   return (
