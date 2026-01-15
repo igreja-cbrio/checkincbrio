@@ -1,11 +1,13 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2, Download, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTodaysServices } from '@/hooks/useServices';
 import { useMySchedules } from '@/hooks/useSchedules';
 import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
+import { usePWA } from '@/hooks/usePWA';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -15,6 +17,7 @@ export default function DashboardPage() {
   const { data: todaysServices } = useTodaysServices();
   const { data: mySchedules } = useMySchedules(user?.id);
   const syncMutation = useSyncPlanningCenter();
+  const { isInstalled, isInstallable, installApp } = usePWA();
 
   const upcomingSchedules = mySchedules?.filter(
     s => new Date(s.service.scheduled_at) >= new Date()
@@ -29,6 +32,13 @@ export default function DashboardPage() {
     }
   };
 
+  const handleInstall = async () => {
+    const success = await installApp();
+    if (success) {
+      toast.success('App instalado com sucesso!');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -39,6 +49,33 @@ export default function DashboardPage() {
           {isLeader ? 'Área do Líder' : 'Área do Voluntário'}
         </p>
       </div>
+
+      {/* PWA Install Banner */}
+      {isInstallable && !isInstalled && (
+        <Card className="border-primary/50 bg-primary/5">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <Download className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium text-sm">Instalar App</p>
+                <p className="text-xs text-muted-foreground">Acesse mais rápido</p>
+              </div>
+            </div>
+            <Button size="sm" onClick={handleInstall}>
+              Instalar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {isInstalled && (
+        <Card className="border-green-500/50 bg-green-500/5">
+          <CardContent className="flex items-center gap-3 py-3">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <p className="text-sm text-green-700">App instalado!</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions - Mobile Grid */}
       <div className="grid grid-cols-2 gap-3">
