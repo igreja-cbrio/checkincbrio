@@ -11,6 +11,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('Starting Planning Center sync...');
+
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -21,27 +23,61 @@ serve(async (req) => {
     const secret = Deno.env.get('PLANNING_CENTER_SECRET');
 
     if (!appId || !secret) {
-      throw new Error('Planning Center credentials not configured');
+      console.error('Missing Planning Center credentials');
+      return new Response(JSON.stringify({ 
+        error: 'Planning Center credentials not configured',
+        details: 'Please add PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    console.log('Credentials found, connecting to Planning Center API...');
 
     const credentials = btoa(`${appId}:${secret}`);
     const baseUrl = 'https://api.planningcenteronline.com/services/v2';
 
-    // Fetch service types
-    const typesRes = await fetch(`${baseUrl}/service_types`, {
+    // Test connection first
+    const testRes = await fetch(`${baseUrl}/service_types`, {
       headers: { 'Authorization': `Basic ${credentials}` }
     });
-    const typesData = await typesRes.json();
 
-    let totalSynced = 0;
+    if (!testRes.ok) {
+      const errorText = await testRes.text();
+      console.error('Planning Center API error:', testRes.status, errorText);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to connect to Planning Center',
+        status: testRes.status,
+        details: errorText
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const typesData = await testRes.json();
+    console.log(`Found ${typesData.data?.length || 0} service types`);
+
+    let totalServices = 0;
+    let totalSchedules = 0;
 
     for (const serviceType of typesData.data || []) {
+      console.log(`Processing service type: ${serviceType.attributes.name}`);
+      
       // Fetch upcoming plans for each service type
       const plansRes = await fetch(
         `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=10`,
         { headers: { 'Authorization': `Basic ${credentials}` } }
       );
+
+      if (!plansRes.ok) {
+        console.error(`Error fetching plans for ${serviceType.attributes.name}`);
+        continue;
+      }
+
       const plansData = await plansRes.json();
+      console.log(`Found ${plansData.data?.length || 0} plans for ${serviceType.attributes.name}`);
 
       for (const plan of plansData.data || []) {
         const serviceDate = plan.attributes.sort_date;
@@ -64,41 +100,64 @@ serve(async (req) => {
           continue;
         }
 
+        totalServices++;
+        console.log(`Synced service: ${serviceName} on ${serviceDate}`);
+
         // Fetch team members for this plan
         const teamRes = await fetch(
           `${baseUrl}/service_types/${serviceType.id}/plans/${plan.id}/team_members?per_page=100`,
           { headers: { 'Authorization': `Basic ${credentials}` } }
         );
+
+        if (!teamRes.ok) {
+          console.error(`Error fetching team for plan ${plan.id}`);
+          continue;
+        }
+
         const teamData = await teamRes.json();
+        console.log(`Found ${teamData.data?.length || 0} team members`);
 
         for (const member of teamData.data || []) {
-          if (member.attributes.status !== 'C') continue; // Only confirmed
+          // Only sync confirmed members
+          if (member.attributes.status !== 'C') continue;
 
-          // Check if schedule exists
+          const personId = member.relationships?.person?.data?.id || member.id;
+
+          // Check if schedule already exists
           const { data: existing } = await supabaseClient
             .from('schedules')
             .select('id')
             .eq('service_id', service.id)
-            .eq('planning_center_person_id', member.relationships?.person?.data?.id || member.id)
-            .single();
+            .eq('planning_center_person_id', personId)
+            .maybeSingle();
 
           if (!existing) {
-            await supabaseClient.from('schedules').insert({
+            const teamPosition = member.attributes.team_position_name || '';
+            const parts = teamPosition.split(' - ');
+            
+            const { error: insertError } = await supabaseClient.from('schedules').insert({
               service_id: service.id,
-              planning_center_person_id: member.relationships?.person?.data?.id || member.id,
+              planning_center_person_id: personId,
               volunteer_name: member.attributes.name,
-              team_name: member.attributes.team_position_name?.split(' - ')[0] || null,
-              position_name: member.attributes.team_position_name?.split(' - ')[1] || null,
+              team_name: parts[0] || null,
+              position_name: parts[1] || null,
             });
-            totalSynced++;
+
+            if (!insertError) {
+              totalSchedules++;
+            }
           }
         }
       }
     }
 
-    console.log(`Sync completed: ${totalSynced} new schedules`);
+    console.log(`Sync completed: ${totalServices} services, ${totalSchedules} new schedules`);
 
-    return new Response(JSON.stringify({ success: true, synced: totalSynced }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      services: totalServices,
+      newSchedules: totalSchedules 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
