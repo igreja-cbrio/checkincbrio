@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useAttendanceReport, useServiceReport } from '@/hooks/useReports';
 import { useUnscheduledReport } from '@/hooks/useUnscheduledReport';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -135,15 +136,15 @@ export default function ReportsPage() {
               <CardContent className="space-y-2">
                 {attendanceData.slice(0, 10).map((item, index) => (
                   <div key={item.volunteer_name} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-muted-foreground w-5">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
                         {index + 1}
                       </span>
-                      <span className="text-sm font-medium truncate max-w-[150px]">
+                      <span className="text-sm font-medium truncate">
                         {item.volunteer_name}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className="text-xs text-muted-foreground">
                         {item.total_checked_in}/{item.total_scheduled}
                       </span>
@@ -153,6 +154,13 @@ export default function ReportsPage() {
                       >
                         {Math.round(item.attendance_rate)}%
                       </Badge>
+                      {item.volunteer_id && (
+                        <Link to={`/history/${item.volunteer_id}`}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

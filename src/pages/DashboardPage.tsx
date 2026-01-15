@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2, Download, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2, Download, CheckCircle2, History } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTodaysServices } from '@/hooks/useServices';
 import { useMySchedules } from '@/hooks/useSchedules';
@@ -146,6 +146,34 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      {/* Leaders: Additional Links */}
+      {isLeader && (
+        <div className="flex gap-3">
+          <Link to="/my-qrcode" className="flex-1">
+            <Card className="active:scale-[0.98] transition-transform">
+              <CardContent className="flex items-center gap-3 py-3 px-4">
+                <QrCode className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium text-sm">Meu QR Code</p>
+                  <p className="text-xs text-muted-foreground">Para meu check-in</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/history" className="flex-1">
+            <Card className="active:scale-[0.98] transition-transform">
+              <CardContent className="flex items-center gap-3 py-3 px-4">
+                <History className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium text-sm">Meu Histórico</p>
+                  <p className="text-xs text-muted-foreground">Minhas presenças</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      )}
 
       {/* Today's Services */}
       {todaysServices && todaysServices.length > 0 && (
