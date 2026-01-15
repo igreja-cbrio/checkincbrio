@@ -134,36 +134,40 @@ export default function ReportsPage() {
                 <CardTitle className="text-base">Top Voluntários</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {attendanceData.slice(0, 10).map((item, index) => (
-                  <div key={item.volunteer_name} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm font-medium truncate">
-                        {item.volunteer_name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        {item.total_checked_in}/{item.total_scheduled}
-                      </span>
-                      <Badge 
-                        variant={item.attendance_rate >= 80 ? 'default' : item.attendance_rate >= 50 ? 'secondary' : 'destructive'}
-                        className="text-xs"
-                      >
-                        {Math.round(item.attendance_rate)}%
-                      </Badge>
-                      {item.volunteer_id && (
-                        <Link to={`/history/${item.volunteer_id}`}>
-                          <Button variant="ghost" size="icon" className="h-7 w-7">
-                            <History className="h-3.5 w-3.5" />
-                          </Button>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                {attendanceData.slice(0, 10).map((item, index) => {
+                  const historyUrl = item.volunteer_id 
+                    ? `/history/${item.volunteer_id}` 
+                    : `/history/by-name/${encodeURIComponent(item.volunteer_name)}`;
+                  
+                  return (
+                    <Link 
+                      key={item.volunteer_name} 
+                      to={historyUrl}
+                      className="flex items-center justify-between py-2 border-b last:border-0 hover:bg-muted/50 -mx-2 px-2 rounded transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium truncate">
+                          {item.volunteer_name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-muted-foreground">
+                          {item.total_checked_in}/{item.total_scheduled}
+                        </span>
+                        <Badge 
+                          variant={item.attendance_rate >= 80 ? 'default' : item.attendance_rate >= 50 ? 'secondary' : 'destructive'}
+                          className="text-xs"
+                        >
+                          {Math.round(item.attendance_rate)}%
+                        </Badge>
+                        <History className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    </Link>
+                  );
+                })}
               </CardContent>
             </Card>
           )}

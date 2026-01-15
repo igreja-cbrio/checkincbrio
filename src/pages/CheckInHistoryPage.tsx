@@ -1,38 +1,54 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMyCheckInHistory, useVolunteerCheckInHistory, useVolunteerProfile } from '@/hooks/useCheckInHistory';
+import { useMyCheckInHistory, useVolunteerCheckInHistory, useVolunteerProfile, useVolunteerHistoryByName } from '@/hooks/useCheckInHistory';
 import { CheckInHistoryList } from '@/components/history/CheckInHistoryList';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function CheckInHistoryPage() {
-  const { volunteerId } = useParams();
+  const { volunteerId, volunteerName } = useParams();
   const { user, isLeader } = useAuth();
   const [period, setPeriod] = useState('30days');
 
+  // Decode volunteer name if present
+  const decodedVolunteerName = volunteerName ? decodeURIComponent(volunteerName) : undefined;
+
   // Determine which user's history to show
   const targetUserId = volunteerId || user?.id;
-  const isViewingOther = volunteerId && volunteerId !== user?.id;
+  const isViewingOther = (volunteerId && volunteerId !== user?.id) || !!volunteerName;
 
-  // Fetch volunteer profile if viewing another user's history
-  const { data: volunteerProfile } = useVolunteerProfile(isViewingOther ? volunteerId : undefined);
+  // Fetch volunteer profile if viewing another user's history (by ID)
+  const { data: volunteerProfile } = useVolunteerProfile(
+    volunteerId && volunteerId !== user?.id ? volunteerId : undefined
+  );
 
-  // Use appropriate hook based on whether viewing own or other's history
-  const { data: checkIns, isLoading } = isViewingOther && isLeader
+  // Use appropriate hook based on context
+  const { data: checkInsByName, isLoading: loadingByName } = useVolunteerHistoryByName(
+    decodedVolunteerName,
+    period
+  );
+
+  const { data: checkInsById, isLoading: loadingById } = isViewingOther && isLeader && volunteerId
     ? useVolunteerCheckInHistory(volunteerId, period)
-    : useMyCheckInHistory(targetUserId, period);
+    : useMyCheckInHistory(decodedVolunteerName ? undefined : targetUserId, period);
+
+  // Select the right data based on mode
+  const checkIns = decodedVolunteerName ? checkInsByName : checkInsById;
+  const isLoading = decodedVolunteerName ? loadingByName : loadingById;
 
   // Calculate summary stats
   const totalCheckIns = checkIns?.length || 0;
   const scheduledCheckIns = checkIns?.filter(c => !c.is_unscheduled).length || 0;
   const unscheduledCheckIns = checkIns?.filter(c => c.is_unscheduled).length || 0;
 
-  const pageTitle = isViewingOther && volunteerProfile
-    ? `Histórico de ${volunteerProfile.full_name}`
-    : 'Meu Histórico';
+  const pageTitle = decodedVolunteerName 
+    ? `Histórico de ${decodedVolunteerName}`
+    : isViewingOther && volunteerProfile
+      ? `Histórico de ${volunteerProfile.full_name}`
+      : 'Meu Histórico';
 
   return (
     <div className="space-y-6">
