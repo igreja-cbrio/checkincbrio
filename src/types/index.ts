@@ -11,7 +11,7 @@ export interface Profile {
 export interface UserRole {
   id: string;
   user_id: string;
-  role: 'volunteer' | 'leader';
+  role: 'volunteer' | 'leader' | 'admin';
   created_at: string;
 }
 

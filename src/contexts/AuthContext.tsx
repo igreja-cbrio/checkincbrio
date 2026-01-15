@@ -9,6 +9,7 @@ interface AuthContextType {
   profile: Profile | null;
   roles: UserRole[];
   isLeader: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, planningCenterId?: string) => Promise<{ error: Error | null }>;
@@ -25,7 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const isLeader = roles.some(r => r.role === 'leader');
+  const isLeader = roles.some(r => r.role === 'leader' || r.role === 'admin');
+  const isAdmin = roles.some(r => r.role === 'admin');
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         roles,
         isLeader,
+        isAdmin,
         isLoading,
         signIn,
         signUp,
