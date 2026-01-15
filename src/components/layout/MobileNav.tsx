@@ -68,10 +68,14 @@ export function MobileHeader() {
           <span className="text-lg font-bold">Check-in</span>
         </Link>
         
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground truncate max-w-[120px]">
-            {profile?.full_name?.split(' ')[0]}
-          </span>
+        <div className="flex items-center gap-2">
+          <Link to="/profile">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <span className="text-sm text-muted-foreground truncate max-w-[100px]">
+                {profile?.full_name?.split(' ')[0]}
+              </span>
+            </Button>
+          </Link>
           <Button variant="ghost" size="icon" onClick={signOut} className="h-9 w-9">
             <LogOut className="h-4 w-4" />
           </Button>

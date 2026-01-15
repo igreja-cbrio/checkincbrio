@@ -63,9 +63,12 @@ export function Header() {
         </div>
 
         <div className="hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4 lg:items-center">
-          <span className="text-sm text-muted-foreground">
+          <Link 
+            to="/profile"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
             {profile?.full_name}
-          </span>
+          </Link>
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="h-4 w-4" />
           </Button>
