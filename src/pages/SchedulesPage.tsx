@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useUpcomingServices } from '@/hooks/useServices';
 import { useServiceSchedules, useMySchedules } from '@/hooks/useSchedules';
 import { ScheduleList } from '@/components/schedules/ScheduleList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Calendar } from 'lucide-react';
+import { Loader2, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -110,41 +111,62 @@ export default function SchedulesPage() {
 }
 
 function ServiceScheduleCard({ serviceId, serviceName, scheduledAt }: { serviceId: string; serviceName: string; scheduledAt: string }) {
+  const [isOpen, setIsOpen] = useState(false);
   const { data: schedules, isLoading } = useServiceSchedules(serviceId);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{serviceName}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {format(new Date(scheduledAt), "EEEE, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-        </p>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : schedules && schedules.length > 0 ? (
-          <div className="space-y-2">
-            {schedules.map((schedule) => (
-              <div 
-                key={schedule.id}
-                className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50"
-              >
-                <span>{schedule.volunteer_name}</span>
-                <span className="text-muted-foreground">
-                  {schedule.team_name} {schedule.position_name && `• ${schedule.position_name}`}
-                </span>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  {isOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  {serviceName}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground ml-6">
+                  {format(new Date(scheduledAt), "EEEE, dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                </p>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Nenhum voluntário escalado
-          </p>
-        )}
-      </CardContent>
+              <span className="text-sm text-muted-foreground">
+                {schedules?.length || 0} voluntários
+              </span>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : schedules && schedules.length > 0 ? (
+              <div className="space-y-2">
+                {schedules.map((schedule) => (
+                  <div 
+                    key={schedule.id}
+                    className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50"
+                  >
+                    <span>{schedule.volunteer_name}</span>
+                    <span className="text-muted-foreground">
+                      {schedule.team_name} {schedule.position_name && `• ${schedule.position_name}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum voluntário escalado
+              </p>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
