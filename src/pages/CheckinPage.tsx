@@ -35,7 +35,7 @@ export default function CheckinPage() {
         scheduleId: result.schedule.id,
         method: 'qr_code',
       });
-      toast.success(`Check-in realizado para ${result.schedule.volunteer_name}!`);
+      toast.success(`Check-in: ${result.schedule.volunteer_name}`);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar QR Code');
     }
@@ -47,34 +47,33 @@ export default function CheckinPage() {
         scheduleId,
         method: 'manual',
       });
-      toast.success('Check-in realizado com sucesso!');
+      toast.success('Check-in realizado!');
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
   };
 
-  const selectedService = todaysServices?.find(s => s.id === selectedServiceId);
   const checkedInCount = schedules?.filter(s => s.check_in).length || 0;
   const totalCount = schedules?.length || 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-3xl font-bold">Check-in</h1>
-        <p className="text-muted-foreground">Registre a presença dos voluntários</p>
+        <h1 className="text-2xl font-bold">Check-in</h1>
+        <p className="text-sm text-muted-foreground">Registre a presença</p>
       </div>
 
       {/* Service Selector */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
             Selecione o Culto
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {loadingServices ? (
-            <p className="text-muted-foreground">Carregando cultos...</p>
+            <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : todaysServices && todaysServices.length > 0 ? (
             <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
               <SelectTrigger>
@@ -89,17 +88,13 @@ export default function CheckinPage() {
               </SelectContent>
             </Select>
           ) : (
-            <p className="text-muted-foreground">Nenhum culto programado para hoje</p>
+            <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
           )}
 
-          {selectedService && (
-            <div className="mt-4 flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>
-                  {checkedInCount} de {totalCount} check-ins realizados
-                </span>
-              </div>
+          {selectedServiceId && (
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>{checkedInCount}/{totalCount} check-ins</span>
             </div>
           )}
         </CardContent>
@@ -113,18 +108,18 @@ export default function CheckinPage() {
             <TabsTrigger value="manual">Manual</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="qr" className="mt-4">
+          <TabsContent value="qr" className="mt-3">
             <QrScanner 
               onScan={handleQrScan} 
               isProcessing={qrCodeMutation.isPending || checkInMutation.isPending}
             />
           </TabsContent>
           
-          <TabsContent value="manual" className="mt-4">
+          <TabsContent value="manual" className="mt-3">
             {loadingSchedules ? (
               <Card>
                 <CardContent className="py-8 text-center">
-                  <p className="text-muted-foreground">Carregando voluntários...</p>
+                  <p className="text-sm text-muted-foreground">Carregando...</p>
                 </CardContent>
               </Card>
             ) : (

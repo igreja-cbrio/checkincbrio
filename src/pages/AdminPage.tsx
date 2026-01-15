@@ -5,14 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Loader2, Shield, ShieldCheck, User, Search, Plus, Minus } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -26,7 +18,6 @@ export default function AdminPage() {
   const addRoleMutation = useAddRole();
   const removeRoleMutation = useRemoveRole();
 
-  // Only admins can access this page
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -39,12 +30,12 @@ export default function AdminPage() {
   const handleAddRole = async (userId: string, role: 'leader' | 'admin') => {
     try {
       await addRoleMutation.mutateAsync({ userId, role });
-      toast.success(`Role ${role} adicionada com sucesso!`);
+      toast.success(`${role} adicionado!`);
     } catch (error: any) {
       if (error.message?.includes('duplicate')) {
-        toast.error('Usuário já possui essa role');
+        toast.error('Já possui essa role');
       } else {
-        toast.error('Erro ao adicionar role');
+        toast.error('Erro ao adicionar');
       }
     }
   };
@@ -52,129 +43,121 @@ export default function AdminPage() {
   const handleRemoveRole = async (userId: string, role: 'leader' | 'admin') => {
     try {
       await removeRoleMutation.mutateAsync({ userId, role });
-      toast.success(`Role ${role} removida com sucesso!`);
+      toast.success(`${role} removido!`);
     } catch (error) {
-      toast.error('Erro ao remover role');
+      toast.error('Erro ao remover');
     }
   };
 
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin':
-        return <Badge className="bg-red-500 hover:bg-red-500"><ShieldCheck className="h-3 w-3 mr-1" />Admin</Badge>;
+        return <Badge className="bg-red-500 hover:bg-red-500 text-xs"><ShieldCheck className="h-3 w-3 mr-1" />Admin</Badge>;
       case 'leader':
-        return <Badge className="bg-blue-500 hover:bg-blue-500"><Shield className="h-3 w-3 mr-1" />Líder</Badge>;
+        return <Badge className="bg-blue-500 hover:bg-blue-500 text-xs"><Shield className="h-3 w-3 mr-1" />Líder</Badge>;
       default:
-        return <Badge variant="secondary"><User className="h-3 w-3 mr-1" />Voluntário</Badge>;
+        return <Badge variant="secondary" className="text-xs"><User className="h-3 w-3 mr-1" />Vol.</Badge>;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-3xl font-bold">Administração</h1>
-        <p className="text-muted-foreground">Gerenciar usuários e permissões</p>
+        <h1 className="text-2xl font-bold">Administração</h1>
+        <p className="text-sm text-muted-foreground">Gerenciar usuários</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Usuários</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome ou email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Buscar..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
+      </div>
 
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Roles</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers?.map(({ profile, roles: userRoles }) => {
-                  const isLeader = userRoles.some(r => r.role === 'leader');
-                  const isUserAdmin = userRoles.some(r => r.role === 'admin');
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredUsers?.map(({ profile, roles: userRoles }) => {
+            const isLeader = userRoles.some(r => r.role === 'leader');
+            const isUserAdmin = userRoles.some(r => r.role === 'admin');
 
-                  return (
-                    <TableRow key={profile.id}>
-                      <TableCell className="font-medium">{profile.full_name}</TableCell>
-                      <TableCell>{profile.email}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                          {userRoles.map(r => (
-                            <span key={r.id}>{getRoleBadge(r.role)}</span>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
-                          {!isLeader ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleAddRole(profile.id, 'leader')}
-                              disabled={addRoleMutation.isPending}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Líder
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRemoveRole(profile.id, 'leader')}
-                              disabled={removeRoleMutation.isPending}
-                            >
-                              <Minus className="h-3 w-3 mr-1" />
-                              Líder
-                            </Button>
-                          )}
-                          {!isUserAdmin ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleAddRole(profile.id, 'admin')}
-                              disabled={addRoleMutation.isPending}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Admin
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleRemoveRole(profile.id, 'admin')}
-                              disabled={removeRoleMutation.isPending}
-                            >
-                              <Minus className="h-3 w-3 mr-1" />
-                              Admin
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            return (
+              <Card key={profile.id}>
+                <CardContent className="py-3">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{profile.full_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{profile.email}</p>
+                      </div>
+                      <div className="flex gap-1 flex-wrap shrink-0">
+                        {userRoles.map(r => (
+                          <span key={r.id}>{getRoleBadge(r.role)}</span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      {!isLeader ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddRole(profile.id, 'leader')}
+                          disabled={addRoleMutation.isPending}
+                          className="flex-1"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Líder
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveRole(profile.id, 'leader')}
+                          disabled={removeRoleMutation.isPending}
+                          className="flex-1"
+                        >
+                          <Minus className="h-3 w-3 mr-1" />
+                          Líder
+                        </Button>
+                      )}
+                      {!isUserAdmin ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddRole(profile.id, 'admin')}
+                          disabled={addRoleMutation.isPending}
+                          className="flex-1"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Admin
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveRole(profile.id, 'admin')}
+                          disabled={removeRoleMutation.isPending}
+                          className="flex-1"
+                        >
+                          <Minus className="h-3 w-3 mr-1" />
+                          Admin
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
