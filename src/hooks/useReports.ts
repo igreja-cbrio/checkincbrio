@@ -18,41 +18,55 @@ export interface ServiceReport {
   attendance_rate: number;
 }
 
-export function useAttendanceReport(period: 'week' | 'month' | '3months') {
+function getDateRange(period: 'week' | 'month' | '3months') {
+  const now = new Date();
+  let startDate: Date;
+  let endDate = now;
+
+  switch (period) {
+    case 'week':
+      startDate = startOfWeek(now, { weekStartsOn: 0 });
+      endDate = endOfWeek(now, { weekStartsOn: 0 });
+      break;
+    case 'month':
+      startDate = startOfMonth(now);
+      endDate = endOfMonth(now);
+      break;
+    case '3months':
+      startDate = subMonths(startOfMonth(now), 2);
+      endDate = endOfMonth(now);
+      break;
+  }
+
+  return { startDate, endDate };
+}
+
+export function useAttendanceReport(period: 'week' | 'month' | '3months', teamName?: string) {
   return useQuery({
-    queryKey: ['reports', 'attendance', period],
+    queryKey: ['reports', 'attendance', period, teamName],
     queryFn: async () => {
-      const now = new Date();
-      let startDate: Date;
-      let endDate = now;
+      const { startDate, endDate } = getDateRange(period);
 
-      switch (period) {
-        case 'week':
-          startDate = startOfWeek(now, { weekStartsOn: 0 });
-          endDate = endOfWeek(now, { weekStartsOn: 0 });
-          break;
-        case 'month':
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
-          break;
-        case '3months':
-          startDate = subMonths(startOfMonth(now), 2);
-          endDate = endOfMonth(now);
-          break;
-      }
-
-      // Get all schedules in the period
-      const { data: schedules, error } = await supabase
+      // Build query
+      let query = supabase
         .from('schedules')
         .select(`
           id,
           volunteer_id,
           volunteer_name,
+          team_name,
           service:services!inner(scheduled_at),
           check_in:check_ins(id)
         `)
         .gte('service.scheduled_at', startDate.toISOString())
         .lte('service.scheduled_at', endDate.toISOString());
+
+      // Filter by team if specified
+      if (teamName) {
+        query = query.eq('team_name', teamName);
+      }
+
+      const { data: schedules, error } = await query;
 
       if (error) throw error;
 
@@ -90,28 +104,11 @@ export function useAttendanceReport(period: 'week' | 'month' | '3months') {
   });
 }
 
-export function useServiceReport(period: 'week' | 'month' | '3months') {
+export function useServiceReport(period: 'week' | 'month' | '3months', teamName?: string) {
   return useQuery({
-    queryKey: ['reports', 'services', period],
+    queryKey: ['reports', 'services', period, teamName],
     queryFn: async () => {
-      const now = new Date();
-      let startDate: Date;
-      let endDate = now;
-
-      switch (period) {
-        case 'week':
-          startDate = startOfWeek(now, { weekStartsOn: 0 });
-          endDate = endOfWeek(now, { weekStartsOn: 0 });
-          break;
-        case 'month':
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
-          break;
-        case '3months':
-          startDate = subMonths(startOfMonth(now), 2);
-          endDate = endOfMonth(now);
-          break;
-      }
+      const { startDate, endDate } = getDateRange(period);
 
       // Get all services in the period with their schedules
       const { data: services, error } = await supabase
@@ -122,6 +119,7 @@ export function useServiceReport(period: 'week' | 'month' | '3months') {
           scheduled_at,
           schedules(
             id,
+            team_name,
             check_in:check_ins(id)
           )
         `)
@@ -132,8 +130,13 @@ export function useServiceReport(period: 'week' | 'month' | '3months') {
       if (error) throw error;
 
       const report: ServiceReport[] = services?.map((service: any) => {
-        const totalScheduled = service.schedules?.length || 0;
-        const totalCheckedIn = service.schedules?.filter((s: any) => s.check_in && s.check_in.length > 0).length || 0;
+        // Filter schedules by team if specified
+        const filteredSchedules = teamName
+          ? service.schedules?.filter((s: any) => s.team_name === teamName) || []
+          : service.schedules || [];
+        
+        const totalScheduled = filteredSchedules.length;
+        const totalCheckedIn = filteredSchedules.filter((s: any) => s.check_in && s.check_in.length > 0).length;
         
         return {
           service_name: service.name,
@@ -142,7 +145,7 @@ export function useServiceReport(period: 'week' | 'month' | '3months') {
           total_checked_in: totalCheckedIn,
           attendance_rate: totalScheduled > 0 ? (totalCheckedIn / totalScheduled) * 100 : 0,
         };
-      }) || [];
+      }).filter((s: ServiceReport) => s.total_scheduled > 0) || [];
 
       return report;
     },

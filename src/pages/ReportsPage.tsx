@@ -3,10 +3,10 @@ import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useAttendanceReport, useServiceReport } from '@/hooks/useReports';
 import { useUnscheduledReport } from '@/hooks/useUnscheduledReport';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History } from 'lucide-react';
+import { useTeams } from '@/hooks/useTeams';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -16,16 +16,20 @@ type Period = 'week' | 'month' | '3months';
 export default function ReportsPage() {
   const { isLeader } = useAuth();
   const [period, setPeriod] = useState<Period>('month');
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
   
-  const { data: attendanceData, isLoading: loadingAttendance } = useAttendanceReport(period);
-  const { data: serviceData, isLoading: loadingServices } = useServiceReport(period);
+  const { data: teams, isLoading: loadingTeams } = useTeams();
+  const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
+  
+  const { data: attendanceData, isLoading: loadingAttendance } = useAttendanceReport(period, teamFilter);
+  const { data: serviceData, isLoading: loadingServices } = useServiceReport(period, teamFilter);
   const { data: unscheduledData, isLoading: loadingUnscheduled } = useUnscheduledReport(period);
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
@@ -36,22 +40,39 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Relatórios</h1>
           <p className="text-sm text-muted-foreground">Análise de presença</p>
         </div>
 
-        <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="week">Semana</SelectItem>
-            <SelectItem value="month">Mês</SelectItem>
-            <SelectItem value="3months">3 meses</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={selectedTeam} onValueChange={setSelectedTeam}>
+            <SelectTrigger className="w-[160px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Equipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas Equipes</SelectItem>
+              {teams?.map((team) => (
+                <SelectItem key={team} value={team}>
+                  {team}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">Semana</SelectItem>
+              <SelectItem value="month">Mês</SelectItem>
+              <SelectItem value="3months">3 meses</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
