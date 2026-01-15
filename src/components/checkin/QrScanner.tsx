@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Camera, CameraOff } from 'lucide-react';
@@ -13,12 +13,47 @@ export function QrScanner({ onScan, isProcessing }: QrScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const isMountedRef = useRef(true);
+
+  const getScannerState = useCallback(() => {
+    if (!scannerRef.current) return null;
+    try {
+      return scannerRef.current.getState();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const stopScanning = useCallback(async () => {
+    const state = getScannerState();
+    
+    // Only stop if scanner is actually running or paused
+    if (
+      scannerRef.current && 
+      state !== null &&
+      (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED)
+    ) {
+      try {
+        await scannerRef.current.stop();
+      } catch (err) {
+        // Silently ignore - scanner might already be stopped
+        console.log('Scanner stop handled:', err);
+      }
+    }
+    
+    if (isMountedRef.current) {
+      setIsScanning(false);
+    }
+  }, [getScannerState]);
 
   const startScanning = async () => {
     setError(null);
     
     try {
+      // Stop any existing scanner first
+      await stopScanning();
+      
+      // Create new scanner instance
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode('qr-reader');
       }
@@ -33,35 +68,52 @@ export function QrScanner({ onScan, isProcessing }: QrScannerProps) {
           onScan(decodedText);
         },
         () => {
-          // Ignore errors during scanning
+          // Ignore QR parse errors during scanning
         }
       );
       
-      setIsScanning(true);
+      if (isMountedRef.current) {
+        setIsScanning(true);
+      }
     } catch (err: any) {
       console.error('Error starting scanner:', err);
-      setError('Não foi possível acessar a câmera. Verifique as permissões.');
-    }
-  };
-
-  const stopScanning = async () => {
-    if (scannerRef.current && isScanning) {
-      try {
-        await scannerRef.current.stop();
+      if (isMountedRef.current) {
+        setError('Não foi possível acessar a câmera. Verifique as permissões.');
         setIsScanning(false);
-      } catch (err) {
-        console.error('Error stopping scanner:', err);
       }
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     return () => {
-      if (scannerRef.current && isScanning) {
-        scannerRef.current.stop().catch(console.error);
+      isMountedRef.current = false;
+      
+      // Cleanup on unmount
+      const scanner = scannerRef.current;
+      if (scanner) {
+        try {
+          const state = scanner.getState();
+          if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+            scanner.stop().catch(() => {
+              // Ignore cleanup errors
+            });
+          }
+        } catch {
+          // Ignore errors during cleanup
+        }
       }
     };
-  }, [isScanning]);
+  }, []);
+
+  const handleToggle = async () => {
+    if (isScanning) {
+      await stopScanning();
+    } else {
+      await startScanning();
+    }
+  };
 
   return (
     <Card>
@@ -74,7 +126,6 @@ export function QrScanner({ onScan, isProcessing }: QrScannerProps) {
       <CardContent className="space-y-4">
         <div 
           id="qr-reader" 
-          ref={containerRef}
           className="w-full overflow-hidden rounded-lg bg-muted"
           style={{ minHeight: isScanning ? '300px' : '0' }}
         />
@@ -90,7 +141,7 @@ export function QrScanner({ onScan, isProcessing }: QrScannerProps) {
         )}
 
         <Button
-          onClick={isScanning ? stopScanning : startScanning}
+          onClick={handleToggle}
           className="w-full"
           variant={isScanning ? 'outline' : 'default'}
           disabled={isProcessing}
