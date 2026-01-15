@@ -12,6 +12,7 @@ import MyQrCodePage from "./pages/MyQrCodePage";
 import SchedulesPage from "./pages/SchedulesPage";
 import ReportsPage from "./pages/ReportsPage";
 import AdminPage from "./pages/AdminPage";
+import CheckInHistoryPage from "./pages/CheckInHistoryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,8 @@ const App = () => (
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/history" element={<CheckInHistoryPage />} />
+              <Route path="/history/:volunteerId" element={<CheckInHistoryPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

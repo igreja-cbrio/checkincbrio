@@ -12,8 +12,9 @@ export function Header() {
 
   const navigation = [
     { name: 'Início', href: '/dashboard', show: true },
-    { name: 'Meu QR Code', href: '/my-qrcode', show: !isLeader },
+    { name: 'Meu QR Code', href: '/my-qrcode', show: true },
     { name: 'Check-in', href: '/checkin', show: isLeader },
+    { name: 'Histórico', href: '/history', show: true },
     { name: 'Escalas', href: '/schedules', show: true },
     { name: 'Relatórios', href: '/reports', show: isLeader },
     { name: 'Admin', href: '/admin', show: isAdmin },

@@ -8,7 +8,8 @@ import {
   Calendar, 
   BarChart3, 
   Settings,
-  LogOut 
+  LogOut,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,10 +19,11 @@ export function MobileNav() {
 
   const navigation = [
     { name: 'Início', href: '/dashboard', icon: Home, show: true },
-    { name: 'QR Code', href: '/my-qrcode', icon: QrCode, show: !isLeader },
+    { name: 'QR Code', href: '/my-qrcode', icon: QrCode, show: true },
     { name: 'Check-in', href: '/checkin', icon: UserCheck, show: isLeader },
-    { name: 'Escalas', href: '/schedules', icon: Calendar, show: true },
+    { name: 'Histórico', href: '/history', icon: History, show: true },
     { name: 'Relatórios', href: '/reports', icon: BarChart3, show: isLeader },
+    { name: 'Escalas', href: '/schedules', icon: Calendar, show: true },
     { name: 'Admin', href: '/admin', icon: Settings, show: isAdmin },
   ].filter(item => item.show);
 
