@@ -18,13 +18,32 @@ export interface CheckInHistoryItem {
   } | null;
 }
 
+function getStartDate(period: string): Date | null {
+  if (period === 'all') return null;
+  
+  const now = new Date();
+  switch (period) {
+    case '7days':
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case '30days':
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case '90days':
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    default:
+      return null;
+  }
+}
+
 export function useMyCheckInHistory(userId: string | undefined, period: string = 'all') {
   return useQuery({
     queryKey: ['my-check-in-history', userId, period],
     queryFn: async () => {
       if (!userId) return [];
 
-      let query = supabase
+      const startDate = getStartDate(period);
+
+      // Query 1: Check-ins where volunteer_id matches
+      let query1 = supabase
         .from('check_ins')
         .select(`
           id,
@@ -34,35 +53,62 @@ export function useMyCheckInHistory(userId: string | undefined, period: string =
           service:services(id, name, scheduled_at, service_type_name),
           schedule:schedules(team_name, position_name)
         `)
-        .or(`volunteer_id.eq.${userId},schedule_id.in.(select id from schedules where volunteer_id='${userId}')`)
+        .eq('volunteer_id', userId)
         .order('checked_in_at', { ascending: false });
 
-      // Apply period filter
-      if (period !== 'all') {
-        const now = new Date();
-        let startDate: Date;
-        
-        switch (period) {
-          case '7days':
-            startDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case '30days':
-            startDate = new Date(now.setDate(now.getDate() - 30));
-            break;
-          case '90days':
-            startDate = new Date(now.setDate(now.getDate() - 90));
-            break;
-          default:
-            startDate = new Date(0);
-        }
-        
-        query = query.gte('checked_in_at', startDate.toISOString());
+      if (startDate) {
+        query1 = query1.gte('checked_in_at', startDate.toISOString());
       }
 
-      const { data, error } = await query;
+      // Query 2: Get user's schedule IDs first
+      const { data: userSchedules } = await supabase
+        .from('schedules')
+        .select('id')
+        .eq('volunteer_id', userId);
 
-      if (error) throw error;
-      return data as CheckInHistoryItem[];
+      const scheduleIds = userSchedules?.map(s => s.id) || [];
+
+      let scheduleCheckIns: CheckInHistoryItem[] = [];
+      
+      if (scheduleIds.length > 0) {
+        let query2 = supabase
+          .from('check_ins')
+          .select(`
+            id,
+            checked_in_at,
+            method,
+            is_unscheduled,
+            service:services(id, name, scheduled_at, service_type_name),
+            schedule:schedules(team_name, position_name)
+          `)
+          .in('schedule_id', scheduleIds)
+          .order('checked_in_at', { ascending: false });
+
+        if (startDate) {
+          query2 = query2.gte('checked_in_at', startDate.toISOString());
+        }
+
+        const { data: data2, error: error2 } = await query2;
+        if (error2) throw error2;
+        scheduleCheckIns = (data2 || []) as CheckInHistoryItem[];
+      }
+
+      const { data: data1, error: error1 } = await query1;
+      if (error1) throw error1;
+
+      // Merge and deduplicate by id
+      const allCheckIns = [...(data1 || []) as CheckInHistoryItem[], ...scheduleCheckIns];
+      const uniqueCheckIns = allCheckIns.reduce((acc, item) => {
+        if (!acc.find(i => i.id === item.id)) {
+          acc.push(item);
+        }
+        return acc;
+      }, [] as CheckInHistoryItem[]);
+
+      // Sort by date descending
+      return uniqueCheckIns.sort((a, b) => 
+        new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime()
+      );
     },
     enabled: !!userId,
   });
@@ -74,7 +120,10 @@ export function useVolunteerCheckInHistory(volunteerId: string | undefined, peri
     queryFn: async () => {
       if (!volunteerId) return [];
 
-      let query = supabase
+      const startDate = getStartDate(period);
+
+      // Query 1: Check-ins where volunteer_id matches
+      let query1 = supabase
         .from('check_ins')
         .select(`
           id,
@@ -84,35 +133,61 @@ export function useVolunteerCheckInHistory(volunteerId: string | undefined, peri
           service:services(id, name, scheduled_at, service_type_name),
           schedule:schedules(team_name, position_name)
         `)
-        .or(`volunteer_id.eq.${volunteerId},schedule_id.in.(select id from schedules where volunteer_id='${volunteerId}')`)
+        .eq('volunteer_id', volunteerId)
         .order('checked_in_at', { ascending: false });
 
-      // Apply period filter
-      if (period !== 'all') {
-        const now = new Date();
-        let startDate: Date;
-        
-        switch (period) {
-          case '7days':
-            startDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case '30days':
-            startDate = new Date(now.setDate(now.getDate() - 30));
-            break;
-          case '90days':
-            startDate = new Date(now.setDate(now.getDate() - 90));
-            break;
-          default:
-            startDate = new Date(0);
-        }
-        
-        query = query.gte('checked_in_at', startDate.toISOString());
+      if (startDate) {
+        query1 = query1.gte('checked_in_at', startDate.toISOString());
       }
 
-      const { data, error } = await query;
+      // Query 2: Get volunteer's schedule IDs
+      const { data: volunteerSchedules } = await supabase
+        .from('schedules')
+        .select('id')
+        .eq('volunteer_id', volunteerId);
 
-      if (error) throw error;
-      return data as CheckInHistoryItem[];
+      const scheduleIds = volunteerSchedules?.map(s => s.id) || [];
+
+      let scheduleCheckIns: CheckInHistoryItem[] = [];
+      
+      if (scheduleIds.length > 0) {
+        let query2 = supabase
+          .from('check_ins')
+          .select(`
+            id,
+            checked_in_at,
+            method,
+            is_unscheduled,
+            service:services(id, name, scheduled_at, service_type_name),
+            schedule:schedules(team_name, position_name)
+          `)
+          .in('schedule_id', scheduleIds)
+          .order('checked_in_at', { ascending: false });
+
+        if (startDate) {
+          query2 = query2.gte('checked_in_at', startDate.toISOString());
+        }
+
+        const { data: data2, error: error2 } = await query2;
+        if (error2) throw error2;
+        scheduleCheckIns = (data2 || []) as CheckInHistoryItem[];
+      }
+
+      const { data: data1, error: error1 } = await query1;
+      if (error1) throw error1;
+
+      // Merge and deduplicate
+      const allCheckIns = [...(data1 || []) as CheckInHistoryItem[], ...scheduleCheckIns];
+      const uniqueCheckIns = allCheckIns.reduce((acc, item) => {
+        if (!acc.find(i => i.id === item.id)) {
+          acc.push(item);
+        }
+        return acc;
+      }, [] as CheckInHistoryItem[]);
+
+      return uniqueCheckIns.sort((a, b) => 
+        new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime()
+      );
     },
     enabled: !!volunteerId,
   });
@@ -134,5 +209,51 @@ export function useVolunteerProfile(volunteerId: string | undefined) {
       return data;
     },
     enabled: !!volunteerId,
+  });
+}
+
+export function useVolunteerHistoryByName(volunteerName: string | undefined, period: string = 'all') {
+  return useQuery({
+    queryKey: ['volunteer-history-by-name', volunteerName, period],
+    queryFn: async () => {
+      if (!volunteerName) return [];
+
+      const startDate = getStartDate(period);
+
+      // First get schedules for this volunteer name
+      const { data: schedules, error: schedError } = await supabase
+        .from('schedules')
+        .select('id')
+        .eq('volunteer_name', volunteerName);
+
+      if (schedError) throw schedError;
+
+      const scheduleIds = schedules?.map(s => s.id) || [];
+
+      if (scheduleIds.length === 0) return [];
+
+      let query = supabase
+        .from('check_ins')
+        .select(`
+          id,
+          checked_in_at,
+          method,
+          is_unscheduled,
+          service:services(id, name, scheduled_at, service_type_name),
+          schedule:schedules(team_name, position_name)
+        `)
+        .in('schedule_id', scheduleIds)
+        .order('checked_in_at', { ascending: false });
+
+      if (startDate) {
+        query = query.gte('checked_in_at', startDate.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return data as CheckInHistoryItem[];
+    },
+    enabled: !!volunteerName,
   });
 }
