@@ -1,6 +1,7 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { MobileHeader, MobileNav } from './MobileNav';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout() {
@@ -20,6 +21,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
+      <OfflineIndicator />
       <MobileHeader />
       <main className="flex-1 px-4 py-4 pb-24 overflow-y-auto">
         <Outlet />
