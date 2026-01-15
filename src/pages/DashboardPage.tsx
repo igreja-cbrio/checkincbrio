@@ -2,21 +2,33 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, QrCode, UserCheck, BarChart3 } from 'lucide-react';
+import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTodaysServices } from '@/hooks/useServices';
 import { useMySchedules } from '@/hooks/useSchedules';
+import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export default function DashboardPage() {
   const { profile, isLeader, user } = useAuth();
   const { data: todaysServices } = useTodaysServices();
   const { data: mySchedules } = useMySchedules(user?.id);
+  const syncMutation = useSyncPlanningCenter();
 
   const upcomingSchedules = mySchedules?.filter(
     s => new Date(s.service.scheduled_at) >= new Date()
   ).slice(0, 3);
+
+  const handleSync = async () => {
+    try {
+      const result = await syncMutation.mutateAsync();
+      toast.success(`Sincronização concluída! ${result.services} cultos, ${result.newSchedules} novas escalas.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao sincronizar');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -69,6 +81,23 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </Link>
+            <Card 
+              className="hover:bg-accent transition-colors cursor-pointer h-full"
+              onClick={handleSync}
+            >
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Sincronizar</CardTitle>
+                {syncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                )}
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">Planning Center</p>
+                <p className="text-xs text-muted-foreground">importar escalas</p>
+              </CardContent>
+            </Card>
           </>
         ) : (
           <>
