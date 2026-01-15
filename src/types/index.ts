@@ -4,6 +4,7 @@ export interface Profile {
   email: string;
   planning_center_id: string | null;
   qr_code: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
