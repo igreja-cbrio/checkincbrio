@@ -3,22 +3,29 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrScanner } from '@/components/checkin/QrScanner';
 import { ManualCheckin } from '@/components/checkin/ManualCheckin';
+import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { useTodaysServices } from '@/hooks/useServices';
-import { useServiceSchedules, useCheckIn, useScheduleByQrCode } from '@/hooks/useSchedules';
+import { useServiceSchedules, useCheckIn, useScheduleByQrCode, useUnscheduledCheckIns, QrCodeResult } from '@/hooks/useSchedules';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2 } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 export default function CheckinPage() {
   const { isLeader } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [unscheduledDialog, setUnscheduledDialog] = useState<{
+    open: boolean;
+    result: QrCodeResult | null;
+  }>({ open: false, result: null });
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
+  const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
   const qrCodeMutation = useScheduleByQrCode();
 
@@ -31,13 +38,39 @@ export default function CheckinPage() {
 
     try {
       const result = await qrCodeMutation.mutateAsync(qrCode);
-      await checkInMutation.mutateAsync({
-        scheduleId: result.schedule.id,
-        method: 'qr_code',
-      });
-      toast.success(`Check-in: ${result.schedule.volunteer_name}`);
+      
+      if (result.isUnscheduled) {
+        // Show confirmation dialog for unscheduled check-in
+        setUnscheduledDialog({ open: true, result });
+      } else {
+        // Normal check-in flow
+        await checkInMutation.mutateAsync({
+          scheduleId: result.schedule.id,
+          method: 'qr_code',
+        });
+        toast.success(`Check-in: ${result.volunteerName}`);
+      }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar QR Code');
+    }
+  };
+
+  const handleConfirmUnscheduledCheckIn = async () => {
+    if (!unscheduledDialog.result || !selectedServiceId) return;
+
+    try {
+      await checkInMutation.mutateAsync({
+        volunteerId: unscheduledDialog.result.profile.id,
+        serviceId: selectedServiceId,
+        method: 'qr_code',
+        isUnscheduled: true,
+      });
+      toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
+        icon: <AlertTriangle className="h-4 w-4" />,
+      });
+      setUnscheduledDialog({ open: false, result: null });
+    } catch (error) {
+      toast.error('Erro ao fazer check-in');
     }
   };
 
@@ -53,8 +86,27 @@ export default function CheckinPage() {
     }
   };
 
+  const handleUnscheduledManualCheckIn = async (volunteerId: string, volunteerName: string) => {
+    if (!selectedServiceId) return;
+
+    try {
+      await checkInMutation.mutateAsync({
+        volunteerId,
+        serviceId: selectedServiceId,
+        method: 'manual',
+        isUnscheduled: true,
+      });
+      toast.warning(`Check-in (sem escala): ${volunteerName}`, {
+        icon: <AlertTriangle className="h-4 w-4" />,
+      });
+    } catch (error) {
+      toast.error('Erro ao fazer check-in');
+    }
+  };
+
   const checkedInCount = schedules?.filter(s => s.check_in).length || 0;
   const totalCount = schedules?.length || 0;
+  const unscheduledCount = unscheduledCheckIns?.length || 0;
 
   return (
     <div className="space-y-4">
@@ -92,9 +144,17 @@ export default function CheckinPage() {
           )}
 
           {selectedServiceId && (
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>{checkedInCount}/{totalCount} check-ins</span>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span>{checkedInCount}/{totalCount} escalados</span>
+              </div>
+              {unscheduledCount > 0 && (
+                <Badge variant="outline" className="border-amber-500 text-amber-600">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {unscheduledCount} sem escala
+                </Badge>
+              )}
             </div>
           )}
         </CardContent>
@@ -126,12 +186,23 @@ export default function CheckinPage() {
               <ManualCheckin
                 schedules={schedules || []}
                 onCheckIn={handleManualCheckIn}
+                onUnscheduledCheckIn={handleUnscheduledManualCheckIn}
                 isProcessing={checkInMutation.isPending}
+                serviceId={selectedServiceId}
               />
             )}
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Unscheduled Check-in Confirmation Dialog */}
+      <UnscheduledCheckinDialog
+        open={unscheduledDialog.open}
+        onOpenChange={(open) => setUnscheduledDialog({ open, result: open ? unscheduledDialog.result : null })}
+        volunteerName={unscheduledDialog.result?.volunteerName || ''}
+        onConfirm={handleConfirmUnscheduledCheckIn}
+        isProcessing={checkInMutation.isPending}
+      />
     </div>
   );
 }

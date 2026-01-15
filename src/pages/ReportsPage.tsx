@@ -4,7 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttendanceReport, useServiceReport } from '@/hooks/useReports';
-import { Loader2, TrendingUp, Users, Calendar } from 'lucide-react';
+import { useUnscheduledReport } from '@/hooks/useUnscheduledReport';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -17,18 +18,20 @@ export default function ReportsPage() {
   
   const { data: attendanceData, isLoading: loadingAttendance } = useAttendanceReport(period);
   const { data: serviceData, isLoading: loadingServices } = useServiceReport(period);
+  const { data: unscheduledData, isLoading: loadingUnscheduled } = useUnscheduledReport(period);
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
   const totalCheckedIn = serviceData?.reduce((acc, s) => acc + s.total_checked_in, 0) || 0;
   const overallRate = totalScheduled > 0 ? Math.round((totalCheckedIn / totalScheduled) * 100) : 0;
   const totalServices = serviceData?.length || 0;
+  const unscheduledCount = unscheduledData?.length || 0;
 
   return (
     <div className="space-y-4">
@@ -57,7 +60,7 @@ export default function ReportsPage() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Card>
               <CardContent className="py-4 text-center">
                 <TrendingUp className="h-5 w-5 mx-auto text-primary mb-1" />
@@ -81,7 +84,47 @@ export default function ReportsPage() {
                 <p className="text-xs text-muted-foreground">Cultos</p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardContent className="py-4 text-center">
+                <AlertTriangle className="h-5 w-5 mx-auto text-amber-500 mb-1" />
+                <p className="text-xl font-bold">{unscheduledCount}</p>
+                <p className="text-xs text-muted-foreground">Sem escala</p>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Unscheduled Check-ins */}
+          {unscheduledData && unscheduledData.length > 0 && (
+            <Card className="border-amber-200 dark:border-amber-900">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Check-ins sem Escala
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {unscheduledData.slice(0, 10).map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.volunteer_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.service_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(item.checked_in_at), "dd/MM HH:mm", { locale: ptBR })}
+                      </span>
+                      <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+                        {item.method === 'qr_code' ? 'QR' : 'Manual'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Top Volunteers */}
           {attendanceData && attendanceData.length > 0 && (
