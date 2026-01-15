@@ -1,6 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -31,97 +30,79 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">
+        <h1 className="text-2xl font-bold">
           Olá, {profile?.full_name?.split(' ')[0] || 'Voluntário'}!
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {isLeader ? 'Área do Líder' : 'Área do Voluntário'}
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Quick Actions - Mobile Grid */}
+      <div className="grid grid-cols-2 gap-3">
         {isLeader ? (
           <>
             <Link to="/checkin">
-              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Check-in</CardTitle>
-                  <UserCheck className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{todaysServices?.length || 0}</p>
-                  <p className="text-xs text-muted-foreground">cultos hoje</p>
+              <Card className="h-full active:scale-[0.98] transition-transform">
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <UserCheck className="h-8 w-8 text-primary mb-2" />
+                  <p className="font-medium text-center">Check-in</p>
+                  <p className="text-xs text-muted-foreground">{todaysServices?.length || 0} cultos hoje</p>
                 </CardContent>
               </Card>
             </Link>
             <Link to="/schedules">
-              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Escalas</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">Ver todas</p>
-                  <p className="text-xs text-muted-foreground">escalas e voluntários</p>
+              <Card className="h-full active:scale-[0.98] transition-transform">
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <Calendar className="h-8 w-8 text-primary mb-2" />
+                  <p className="font-medium text-center">Escalas</p>
+                  <p className="text-xs text-muted-foreground">Ver todas</p>
                 </CardContent>
               </Card>
             </Link>
             <Link to="/reports">
-              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Relatórios</CardTitle>
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">Análises</p>
-                  <p className="text-xs text-muted-foreground">frequência e presença</p>
+              <Card className="h-full active:scale-[0.98] transition-transform">
+                <CardContent className="flex flex-col items-center justify-center py-6">
+                  <BarChart3 className="h-8 w-8 text-primary mb-2" />
+                  <p className="font-medium text-center">Relatórios</p>
+                  <p className="text-xs text-muted-foreground">Análises</p>
                 </CardContent>
               </Card>
             </Link>
             <Card 
-              className="hover:bg-accent transition-colors cursor-pointer h-full"
+              className="h-full active:scale-[0.98] transition-transform cursor-pointer"
               onClick={handleSync}
             >
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Sincronizar</CardTitle>
+              <CardContent className="flex flex-col items-center justify-center py-6">
                 {syncMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                  <Loader2 className="h-8 w-8 text-primary mb-2 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                  <RefreshCw className="h-8 w-8 text-primary mb-2" />
                 )}
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">Planning Center</p>
-                <p className="text-xs text-muted-foreground">importar escalas</p>
+                <p className="font-medium text-center">Sincronizar</p>
+                <p className="text-xs text-muted-foreground">Planning Center</p>
               </CardContent>
             </Card>
           </>
         ) : (
           <>
             <Link to="/my-qrcode">
-              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Meu QR Code</CardTitle>
-                  <QrCode className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">Exibir</p>
-                  <p className="text-xs text-muted-foreground">para fazer check-in</p>
+              <Card className="h-full active:scale-[0.98] transition-transform">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <QrCode className="h-10 w-10 text-primary mb-3" />
+                  <p className="font-semibold text-center">Meu QR Code</p>
+                  <p className="text-xs text-muted-foreground">Para check-in</p>
                 </CardContent>
               </Card>
             </Link>
             <Link to="/schedules">
-              <Card className="hover:bg-accent transition-colors cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Minhas Escalas</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{upcomingSchedules?.length || 0}</p>
-                  <p className="text-xs text-muted-foreground">próximas escalas</p>
+              <Card className="h-full active:scale-[0.98] transition-transform">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Calendar className="h-10 w-10 text-primary mb-3" />
+                  <p className="font-semibold text-center">Minhas Escalas</p>
+                  <p className="text-xs text-muted-foreground">{upcomingSchedules?.length || 0} próximas</p>
                 </CardContent>
               </Card>
             </Link>
@@ -132,31 +113,29 @@ export default function DashboardPage() {
       {/* Today's Services */}
       {todaysServices && todaysServices.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="h-4 w-4" />
               Cultos de Hoje
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {todaysServices.map((service) => (
-                <div 
-                  key={service.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
-                >
-                  <div>
-                    <p className="font-medium">{service.name}</p>
-                    {service.service_type_name && (
-                      <p className="text-sm text-muted-foreground">{service.service_type_name}</p>
-                    )}
-                  </div>
-                  <Badge variant="outline">
-                    {format(new Date(service.scheduled_at), 'HH:mm', { locale: ptBR })}
-                  </Badge>
+          <CardContent className="space-y-2">
+            {todaysServices.map((service) => (
+              <div 
+                key={service.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{service.name}</p>
+                  {service.service_type_name && (
+                    <p className="text-xs text-muted-foreground truncate">{service.service_type_name}</p>
+                  )}
                 </div>
-              ))}
-            </div>
+                <Badge variant="outline" className="ml-2 shrink-0">
+                  {format(new Date(service.scheduled_at), 'HH:mm', { locale: ptBR })}
+                </Badge>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -164,45 +143,36 @@ export default function DashboardPage() {
       {/* Upcoming Schedules for Volunteers */}
       {!isLeader && upcomingSchedules && upcomingSchedules.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
               Próximas Escalas
             </CardTitle>
-            <CardDescription>Suas próximas participações</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {upcomingSchedules.map((schedule) => (
-                <div 
-                  key={schedule.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
-                >
-                  <div>
-                    <p className="font-medium">{schedule.service.name}</p>
-                    <div className="flex gap-2 mt-1">
-                      {schedule.team_name && (
-                        <Badge variant="secondary" className="text-xs">{schedule.team_name}</Badge>
-                      )}
-                      {schedule.position_name && (
-                        <Badge variant="outline" className="text-xs">{schedule.position_name}</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {format(new Date(schedule.service.scheduled_at), 'dd/MM', { locale: ptBR })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(schedule.service.scheduled_at), 'HH:mm', { locale: ptBR })}
-                    </p>
+          <CardContent className="space-y-2">
+            {upcomingSchedules.map((schedule) => (
+              <div 
+                key={schedule.id}
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{schedule.service.name}</p>
+                  <div className="flex gap-1 mt-1 flex-wrap">
+                    {schedule.team_name && (
+                      <Badge variant="secondary" className="text-xs">{schedule.team_name}</Badge>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-            <Button variant="outline" className="w-full mt-4" asChild>
-              <Link to="/schedules">Ver todas as escalas</Link>
-            </Button>
+                <div className="text-right ml-2 shrink-0">
+                  <p className="text-sm font-medium">
+                    {format(new Date(schedule.service.scheduled_at), 'dd/MM', { locale: ptBR })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(schedule.service.scheduled_at), 'HH:mm', { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
