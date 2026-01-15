@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileStats, useUpdateProfile } from '@/hooks/useProfile';
+import { useLinkPlanningCenter, useSyncFromPlanningCenter } from '@/hooks/usePlanningCenterSearch';
+import { PlanningCenterSearch } from '@/components/auth/PlanningCenterSearch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
   User, 
   Mail, 
@@ -18,19 +21,26 @@ import {
   Pencil,
   Save,
   X,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { PlanningCenterPerson } from '@/hooks/usePlanningCenterSearch';
 
 export default function ProfilePage() {
   const { user, profile, isLeader, isAdmin, refreshProfile } = useAuth();
   const { data: stats, isLoading: loadingStats } = useProfileStats(user?.id);
   const updateProfile = useUpdateProfile();
+  const linkPlanningCenter = useLinkPlanningCenter();
+  const syncFromPlanningCenter = useSyncFromPlanningCenter();
   
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState(profile?.full_name || '');
+  const [showPlanningCenterSearch, setShowPlanningCenterSearch] = useState(false);
 
   const handleSave = async () => {
     if (!user?.id || !fullName.trim()) {
@@ -53,18 +63,69 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
+  const handleSelectPerson = async (person: PlanningCenterPerson) => {
+    if (!user?.id) return;
+
+    try {
+      await linkPlanningCenter.mutateAsync({
+        userId: user.id,
+        planningCenterId: person.id,
+        fullName: person.full_name,
+        avatarUrl: person.avatar_url,
+      });
+      await refreshProfile();
+      setShowPlanningCenterSearch(false);
+    } catch (error) {
+      // Error is handled by the mutation
+    }
+  };
+
+  const handleSyncFromPlanningCenter = async () => {
+    if (!user?.id || !profile?.planning_center_id) return;
+
+    try {
+      await syncFromPlanningCenter.mutateAsync({
+        userId: user.id,
+        planningCenterId: profile.planning_center_id,
+      });
+      await refreshProfile();
+    } catch (error) {
+      // Error is handled by the mutation
+    }
+  };
+
   const getRoleBadge = () => {
     if (isAdmin) return <Badge variant="destructive">Admin</Badge>;
     if (isLeader) return <Badge variant="default">Líder</Badge>;
     return <Badge variant="secondary">Voluntário</Badge>;
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Access avatar_url from profile (may not be in types yet but exists in DB)
+  const avatarUrl = (profile as any)?.avatar_url;
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Meu Perfil</h1>
-        <p className="text-sm text-muted-foreground">Gerencie suas informações</p>
+      <div className="flex items-center gap-4">
+        <Avatar className="h-16 w-16">
+          <AvatarImage src={avatarUrl} alt={profile?.full_name} />
+          <AvatarFallback className="text-lg">
+            {profile?.full_name ? getInitials(profile.full_name) : <User className="h-6 w-6" />}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <h1 className="text-2xl font-bold">Meu Perfil</h1>
+          <p className="text-sm text-muted-foreground">Gerencie suas informações</p>
+        </div>
       </div>
 
       {/* Profile Info Card */}
@@ -137,14 +198,90 @@ export default function ProfilePage() {
             </Label>
             <p className="text-sm text-muted-foreground py-2">{profile?.email || user?.email || '-'}</p>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Planning Center ID (read-only) */}
-          {profile?.planning_center_id && (
-            <div className="space-y-2">
-              <Label>Planning Center ID</Label>
-              <p className="text-sm text-muted-foreground py-2 font-mono">
-                {profile.planning_center_id}
+      {/* Planning Center Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ExternalLink className="h-4 w-4" />
+            Planning Center
+          </CardTitle>
+          <CardDescription>
+            Vincule ao Planning Center para sincronizar suas informações
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {showPlanningCenterSearch ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Buscar seu perfil</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowPlanningCenterSearch(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+              <PlanningCenterSearch onSelect={handleSelectPerson} />
+            </div>
+          ) : profile?.planning_center_id ? (
+            <div className="space-y-4">
+              {/* Linked status */}
+              <div className="flex items-center gap-3 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">Vinculado</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    ID: {profile.planning_center_id}
+                  </p>
+                </div>
+              </div>
+
+              {/* Sync button */}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleSyncFromPlanningCenter}
+                disabled={syncFromPlanningCenter.isPending}
+              >
+                {syncFromPlanningCenter.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Atualizar do Planning Center
+              </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                Sincroniza nome e foto do seu perfil no Planning Center
               </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Not linked status */}
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
+                <LinkIcon className="h-5 w-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Não vinculado</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vincule para sincronizar suas informações
+                  </p>
+                </div>
+              </div>
+
+              {/* Link button */}
+              <Button
+                variant="default"
+                className="w-full"
+                onClick={() => setShowPlanningCenterSearch(true)}
+                disabled={linkPlanningCenter.isPending}
+              >
+                <LinkIcon className="h-4 w-4 mr-2" />
+                Vincular ao Planning Center
+              </Button>
             </div>
           )}
         </CardContent>
