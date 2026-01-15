@@ -2,6 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import type { Profile, UserRole } from '@/types';
+import { 
+  saveProfile, 
+  getProfile, 
+  saveRoles, 
+  getRoles, 
+  clearOfflineData 
+} from '@/services/offlineStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -30,6 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = roles.some(r => r.role === 'admin');
 
   const fetchUserData = async (userId: string) => {
+    // First, load cached data for instant display
+    const cachedProfile = getProfile();
+    const cachedRoles = getRoles();
+    
+    if (cachedProfile && cachedProfile.id === userId) {
+      setProfile(cachedProfile);
+    }
+    if (cachedRoles.length > 0) {
+      setRoles(cachedRoles);
+    }
+
+    // Then try to fetch fresh data from server
     try {
       // Fetch profile
       const { data: profileData } = await supabase
@@ -40,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (profileData) {
         setProfile(profileData as Profile);
+        saveProfile(profileData as Profile); // Save for offline
       }
 
       // Fetch roles
@@ -50,9 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (rolesData) {
         setRoles(rolesData as UserRole[]);
+        saveRoles(rolesData as UserRole[]); // Save for offline
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      // Data from cache is already set, so offline works
     }
   };
 
@@ -117,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRoles([]);
+    clearOfflineData(); // Clear offline data on logout
   };
 
   const refreshProfile = async () => {

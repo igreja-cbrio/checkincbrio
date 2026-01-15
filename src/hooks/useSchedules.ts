@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Schedule, ScheduleWithDetails, CheckIn } from '@/types';
+import { saveMySchedules, getMySchedules } from '@/services/offlineStorage';
 
 export function useServiceSchedules(serviceId: string | undefined) {
   return useQuery({
@@ -33,6 +34,13 @@ export function useMySchedules(userId: string | undefined) {
   return useQuery({
     queryKey: ['schedules', 'my', userId],
     enabled: !!userId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
+    placeholderData: () => {
+      // Return cached data while fetching
+      const cached = getMySchedules();
+      return cached.length > 0 ? cached : undefined;
+    },
     queryFn: async () => {
       const { data, error } = await supabase
         .from('schedules')
@@ -46,11 +54,16 @@ export function useMySchedules(userId: string | undefined) {
       
       if (error) throw error;
       
-      return data.map((schedule: any) => ({
+      const schedules = data.map((schedule: any) => ({
         ...schedule,
         service: schedule.service,
         check_in: schedule.check_in?.[0] || null,
       })) as ScheduleWithDetails[];
+
+      // Save for offline access
+      saveMySchedules(schedules);
+      
+      return schedules;
     },
   });
 }

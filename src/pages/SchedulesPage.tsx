@@ -7,17 +7,19 @@ import { Badge } from '@/components/ui/badge';
 import { useUpcomingServices } from '@/hooks/useServices';
 import { useServiceSchedules, useMySchedules } from '@/hooks/useSchedules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Calendar, ChevronDown, ChevronRight, Check } from 'lucide-react';
+import { Loader2, Calendar, ChevronDown, ChevronRight, Check, WifiOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 export default function SchedulesPage() {
   const { isLeader, user } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const isOnline = useOnlineStatus();
   
   const { data: services, isLoading: loadingServices } = useUpcomingServices();
   const { data: serviceSchedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
-  const { data: mySchedules, isLoading: loadingMySchedules } = useMySchedules(user?.id);
+  const { data: mySchedules, isLoading: loadingMySchedules, isPlaceholderData } = useMySchedules(user?.id);
 
   if (loadingServices || loadingMySchedules) {
     return (
@@ -31,9 +33,17 @@ export default function SchedulesPage() {
     // Volunteer view
     return (
       <div className="space-y-4">
-        <div>
-          <h1 className="text-2xl font-bold">Minhas Escalas</h1>
-          <p className="text-sm text-muted-foreground">Suas participações</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Minhas Escalas</h1>
+            <p className="text-sm text-muted-foreground">Suas participações</p>
+          </div>
+          {(!isOnline || isPlaceholderData) && (
+            <Badge variant="secondary" className="gap-1">
+              <WifiOff className="h-3 w-3" />
+              Offline
+            </Badge>
+          )}
         </div>
 
         {mySchedules && mySchedules.length > 0 ? (
