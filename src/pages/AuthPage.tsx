@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { PlanningCenterSearch } from '@/components/auth/PlanningCenterSearch';
 import { PlanningCenterPerson } from '@/hooks/usePlanningCenterSearch';
+import { supabase } from '@/integrations/supabase/client';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -27,6 +28,7 @@ const signupSchema = z.object({
 export default function AuthPage() {
   const { user, isLoading, signIn, signUp } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPlanningCenterLoading, setIsPlanningCenterLoading] = useState(false);
   const [showPlanningCenterSearch, setShowPlanningCenterSearch] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<PlanningCenterPerson | null>(null);
   
@@ -39,6 +41,32 @@ export default function AuthPage() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupPlanningCenterId, setSignupPlanningCenterId] = useState('');
+
+  const handlePlanningCenterLogin = async () => {
+    setIsPlanningCenterLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('planning-center-auth', {});
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.authUrl) {
+        // Save state for CSRF protection
+        if (data.state) {
+          sessionStorage.setItem('pc_oauth_state', data.state);
+        }
+        // Redirect to Planning Center
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error('Não foi possível gerar URL de autenticação');
+      }
+    } catch (err: any) {
+      console.error('Planning Center auth error:', err);
+      toast.error(err.message || 'Erro ao iniciar login com Planning Center');
+      setIsPlanningCenterLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -146,35 +174,65 @@ export default function AuthPage() {
               </TabsList>
               
               <TabsContent value="login" className="mt-0">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="seu@email.com"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      autoComplete="email"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      autoComplete="current-password"
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full h-12" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Entrar
+                <div className="space-y-4">
+                  {/* Planning Center Login Button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-12 border-primary/20 hover:bg-primary/5"
+                    onClick={handlePlanningCenterLogin}
+                    disabled={isPlanningCenterLoading}
+                  >
+                    {isPlanningCenterLoading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserCheck className="mr-2 h-4 w-4" />
+                    )}
+                    Entrar com Planning Center
                   </Button>
-                </form>
+
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        ou com email
+                      </span>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input
+                        id="login-email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        autoComplete="email"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Senha</Label>
+                      <Input
+                        id="login-password"
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        autoComplete="current-password"
+                        required
+                      />
+                    </div>
+                    <Button type="submit" className="w-full h-12" disabled={isSubmitting}>
+                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Entrar
+                    </Button>
+                  </form>
+                </div>
               </TabsContent>
               
               <TabsContent value="signup" className="mt-0">

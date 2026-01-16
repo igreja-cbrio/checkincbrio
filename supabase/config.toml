@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.get-planning-center-person]
 verify_jwt = false
+
+[functions.planning-center-auth]
+verify_jwt = false
+
+[functions.planning-center-callback]
+verify_jwt = false
