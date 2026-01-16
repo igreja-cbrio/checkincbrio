@@ -257,9 +257,9 @@ serve(async (req) => {
           planningCenterId,
           avatarUrl,
         },
-        // Return the token hashes needed for verification
+        // Return the token hash and email needed for verification
         tokenHash: properties?.hashed_token,
-        verificationUrl: properties?.verification_url,
+        email, // Include email for verifyOtp
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

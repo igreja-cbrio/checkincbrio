@@ -61,26 +61,29 @@ export default function PlanningCenterCallback() {
           throw new Error(data?.error || 'Erro ao processar autenticação');
         }
 
-        // If we have a verification URL, use it to sign in
-        if (data.verificationUrl) {
-          // Extract the token from the verification URL and verify it
-          const url = new URL(data.verificationUrl);
-          const token = url.searchParams.get('token');
-          const type = url.searchParams.get('type');
+        // Use the tokenHash to verify and create session
+        if (data.tokenHash && data.email) {
+          console.log('Verifying OTP with token hash...');
           
-          if (token && type) {
-            const { error: verifyError } = await supabase.auth.verifyOtp({
-              token_hash: token,
-              type: type as any,
-            });
+          const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: data.tokenHash,
+            type: 'email',
+          });
 
-            if (verifyError) {
-              console.error('Verification error:', verifyError);
-              // Try to sign in with magic link directly by redirecting
-              window.location.href = data.verificationUrl;
-              return;
-            }
+          if (verifyError) {
+            console.error('Verification error:', verifyError);
+            throw new Error('Falha ao verificar token de autenticação');
           }
+
+          // Verify session was established
+          if (!sessionData.session) {
+            console.error('No session returned from verifyOtp');
+            throw new Error('Sessão não foi criada');
+          }
+
+          console.log('Session established successfully');
+        } else {
+          throw new Error('Token de autenticação não recebido');
         }
 
         setStatus('success');
