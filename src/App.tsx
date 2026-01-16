@@ -14,6 +14,7 @@ import ReportsPage from "./pages/ReportsPage";
 import AdminPage from "./pages/AdminPage";
 import CheckInHistoryPage from "./pages/CheckInHistoryPage";
 import ProfilePage from "./pages/ProfilePage";
+import PlanningCenterCallback from "./pages/PlanningCenterCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/planning-center/callback" element={<PlanningCenterCallback />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
