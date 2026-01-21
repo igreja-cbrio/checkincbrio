@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, QrCode, UserCheck, Calendar, BarChart3, Settings, LogOut, History } from 'lucide-react';
+import { Home, QrCode, UserCheck, Calendar, BarChart3, Settings, LogOut, History, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 export function MobileNav() {
   const {
@@ -40,6 +40,11 @@ export function MobileNav() {
     href: '/schedules',
     icon: Calendar,
     show: true
+  }, {
+    name: 'Crachás',
+    href: '/qr-codes',
+    icon: Users,
+    show: isLeader
   }, {
     name: 'Admin',
     href: '/admin',
