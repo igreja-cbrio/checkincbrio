@@ -136,3 +136,48 @@ All colors MUST be HSL.
     font-size: 16px !important;
   }
 }
+
+/* Print Styles */
+@media print {
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .print\\:block {
+    display: block !important;
+  }
+
+  /* Hide navigation and non-essential elements */
+  nav,
+  header,
+  .mobile-nav,
+  [data-mobile-nav],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Report specific styles */
+  .print-report {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-report .card {
+    border: 1px solid hsl(var(--border)) !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    margin-bottom: 1rem !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4;
+    margin: 1.5cm;
+  }
+}
