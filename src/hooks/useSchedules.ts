@@ -106,6 +106,16 @@ export function useCheckIn() {
         }
         throw error;
       }
+
+      // If checking in a scheduled volunteer, confirm if pending
+      if (scheduleId) {
+        await supabase
+          .from('schedules')
+          .update({ confirmation_status: 'confirmed' })
+          .eq('id', scheduleId)
+          .eq('confirmation_status', 'pending');
+      }
+
       return data as CheckIn;
     },
     onSuccess: () => {

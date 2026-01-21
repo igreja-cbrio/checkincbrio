@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrScanner } from '@/components/checkin/QrScanner';
-import { ManualCheckin } from '@/components/checkin/ManualCheckin';
+import { ManualCheckin, UnscheduledCheckInParams } from '@/components/checkin/ManualCheckin';
 import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -103,17 +103,17 @@ export default function CheckinPage() {
     }
   };
 
-  const handleUnscheduledManualCheckIn = async (volunteerId: string, volunteerName: string) => {
+  const handleUnscheduledManualCheckIn = async (params: UnscheduledCheckInParams) => {
     if (!selectedServiceId) return;
 
     try {
       await checkInMutation.mutateAsync({
-        volunteerId,
+        volunteerId: params.volunteerId || undefined,
         serviceId: selectedServiceId,
         method: 'manual',
         isUnscheduled: true,
       });
-      toast.warning(`Check-in (sem escala): ${volunteerName}`, {
+      toast.warning(`Check-in (sem escala): ${params.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
     } catch (error) {

@@ -38,10 +38,17 @@ function ConfirmationBadge({ status }: { status: string | null }) {
   return null;
 }
 
+export interface UnscheduledCheckInParams {
+  volunteerId?: string;
+  planningCenterId?: string;
+  volunteerName: string;
+  source: 'system' | 'planning_center';
+}
+
 interface ManualCheckinProps {
   schedules: ScheduleWithDetails[];
   onCheckIn: (scheduleId: string) => void;
-  onUnscheduledCheckIn: (volunteerId: string, volunteerName: string) => void;
+  onUnscheduledCheckIn: (params: UnscheduledCheckInParams) => void;
   isProcessing: boolean;
   serviceId: string;
 }
@@ -50,6 +57,12 @@ interface VolunteerProfile {
   id: string;
   full_name: string;
   planning_center_id: string | null;
+}
+
+interface VolunteerQrCode {
+  id: string;
+  planning_center_person_id: string;
+  volunteer_name: string;
 }
 
 export function ManualCheckin({ 
@@ -74,6 +87,21 @@ export function ManualCheckin({
       
       if (error) throw error;
       return data as VolunteerProfile[];
+    },
+  });
+
+  // Get all volunteer QR codes from Planning Center
+  const { data: volunteerQrCodes } = useQuery({
+    queryKey: ['volunteer-qrcodes', 'all'],
+    enabled: showAllVolunteers,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('volunteer_qrcodes')
+        .select('id, planning_center_person_id, volunteer_name')
+        .order('volunteer_name');
+      
+      if (error) throw error;
+      return data as VolunteerQrCode[];
     },
   });
 
@@ -105,15 +133,43 @@ export function ManualCheckin({
     schedule.position_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Get scheduled volunteer IDs to exclude from unscheduled list
+  // Get scheduled volunteer IDs and PC IDs to exclude from unscheduled list
   const scheduledVolunteerIds = new Set(schedules.map(s => s.volunteer_id).filter(Boolean));
+  const scheduledPcIds = new Set(schedules.map(s => s.planning_center_person_id).filter(Boolean));
   const alreadyCheckedInIds = new Set(todayUnscheduledCheckIns || []);
 
-  const unscheduledVolunteers = allVolunteers?.filter(v => 
+  // Get PC IDs from profiles to avoid duplicates
+  const profilePcIds = new Set(allVolunteers?.map(v => v.planning_center_id).filter(Boolean) || []);
+
+  // Filter system volunteers (with accounts)
+  const unscheduledSystemVolunteers = allVolunteers?.filter(v => 
     !scheduledVolunteerIds.has(v.id) && 
     !alreadyCheckedInIds.has(v.id) &&
     v.full_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  // Filter PC volunteers (without accounts, not duplicated from profiles)
+  const unscheduledPcVolunteers = volunteerQrCodes?.filter(v => 
+    !scheduledPcIds.has(v.planning_center_person_id) &&
+    !profilePcIds.has(v.planning_center_person_id) && // Exclude if already has profile
+    v.volunteer_name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  // Combine all unscheduled volunteers
+  const allUnscheduledVolunteers = [
+    ...unscheduledSystemVolunteers.map(v => ({
+      id: v.id,
+      name: v.full_name,
+      planningCenterId: v.planning_center_id,
+      source: 'system' as const,
+    })),
+    ...unscheduledPcVolunteers.map(v => ({
+      id: v.id,
+      name: v.volunteer_name,
+      planningCenterId: v.planning_center_person_id,
+      source: 'planning_center' as const,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Card>
@@ -177,7 +233,7 @@ export function ManualCheckin({
           )}
 
           {/* Divider for unscheduled section */}
-          {showAllVolunteers && unscheduledVolunteers.length > 0 && filteredSchedules.length > 0 && (
+          {showAllVolunteers && allUnscheduledVolunteers.length > 0 && filteredSchedules.length > 0 && (
             <div className="flex items-center gap-2 py-2">
               <div className="flex-1 h-px bg-border" />
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -189,22 +245,39 @@ export function ManualCheckin({
           )}
 
           {/* Unscheduled volunteers */}
-          {showAllVolunteers && unscheduledVolunteers.map((volunteer) => (
+          {showAllVolunteers && allUnscheduledVolunteers.map((volunteer) => (
             <div
-              key={volunteer.id}
+              key={`${volunteer.source}-${volunteer.id}`}
               className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900"
             >
               <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{volunteer.full_name}</p>
-                <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 mt-1">
-                  Sem escala
-                </Badge>
+                <p className="font-medium truncate">{volunteer.name}</p>
+                <div className="flex gap-1 mt-1">
+                  <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+                    Sem escala
+                  </Badge>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${
+                      volunteer.source === 'system' 
+                        ? 'border-green-500 text-green-600' 
+                        : 'border-blue-500 text-blue-600'
+                    }`}
+                  >
+                    {volunteer.source === 'system' ? 'Sistema' : 'PC'}
+                  </Badge>
+                </div>
               </div>
               
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onUnscheduledCheckIn(volunteer.id, volunteer.full_name)}
+                onClick={() => onUnscheduledCheckIn({
+                  volunteerId: volunteer.source === 'system' ? volunteer.id : undefined,
+                  planningCenterId: volunteer.planningCenterId || undefined,
+                  volunteerName: volunteer.name,
+                  source: volunteer.source,
+                })}
                 disabled={isProcessing}
                 className="shrink-0 ml-2 border-amber-500 text-amber-600 hover:bg-amber-100"
               >
