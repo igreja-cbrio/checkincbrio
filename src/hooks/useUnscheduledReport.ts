@@ -8,6 +8,7 @@ export interface UnscheduledCheckIn {
   service_name: string;
   checked_in_at: string;
   method: string;
+  source: 'system' | 'planning_center';
 }
 
 export function useUnscheduledReport(period: 'week' | 'month' | '3months') {
@@ -39,6 +40,7 @@ export function useUnscheduledReport(period: 'week' | 'month' | '3months') {
           id,
           checked_in_at,
           method,
+          volunteer_id,
           volunteer:profiles(full_name),
           service:services(name, scheduled_at)
         `)
@@ -55,6 +57,9 @@ export function useUnscheduledReport(period: 'week' | 'month' | '3months') {
         service_name: item.service?.name || 'Culto não identificado',
         checked_in_at: item.checked_in_at,
         method: item.method,
+        // If volunteer_id is present, the volunteer has a system account
+        // If null, they were checked in via volunteer_qrcodes (Planning Center only)
+        source: item.volunteer_id ? 'system' : 'planning_center',
       })) as UnscheduledCheckIn[];
     },
   });
