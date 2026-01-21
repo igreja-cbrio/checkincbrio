@@ -3,6 +3,7 @@ import { FileDown, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
+import QRCode from 'qrcode';
 import { VolunteerWithQrCode } from '@/hooks/useVolunteersQrCodes';
 
 interface QrCodePdfExportProps {
@@ -108,47 +109,23 @@ export function QrCodePdfExport({ volunteers }: QrCodePdfExportProps) {
   );
 }
 
-// Helper function to generate QR code as data URL
+// Helper function to generate QR code as data URL using qrcode library
 async function generateQrCodeDataUrl(value: string, size: number): Promise<string> {
-  return new Promise((resolve) => {
-    // Create a temporary container
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    // Use dynamic import to avoid SSR issues
-    import('qrcode.react').then(({ QRCodeCanvas }) => {
-      const React = require('react');
-      const ReactDOM = require('react-dom/client');
-      
-      const root = ReactDOM.createRoot(container);
-      root.render(
-        React.createElement(QRCodeCanvas, {
-          value,
-          size,
-          level: 'H',
-          includeMargin: true,
-        })
-      );
-
-      // Wait for render
-      setTimeout(() => {
-        const canvas = container.querySelector('canvas');
-        if (canvas) {
-          resolve(canvas.toDataURL('image/png'));
-        } else {
-          // Fallback: generate simple placeholder
-          resolve(generatePlaceholderQr(value, size));
-        }
-        root.unmount();
-        document.body.removeChild(container);
-      }, 100);
+  try {
+    const dataUrl = await QRCode.toDataURL(value, {
+      width: size,
+      margin: 2,
+      errorCorrectionLevel: 'H',
     });
-  });
+    return dataUrl;
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    // Fallback: generate simple placeholder
+    return generatePlaceholderQr(size);
+  }
 }
 
-function generatePlaceholderQr(value: string, size: number): string {
+function generatePlaceholderQr(size: number): string {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
