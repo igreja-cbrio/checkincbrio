@@ -18,7 +18,18 @@ export interface ServiceReport {
   attendance_rate: number;
 }
 
-function getDateRange(period: 'week' | 'month' | '3months') {
+export type ReportPeriod = 'week' | 'month' | '3months' | 'custom';
+
+export interface DateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+function getDateRange(period: ReportPeriod, customRange?: DateRange) {
+  if (period === 'custom' && customRange) {
+    return { startDate: customRange.startDate, endDate: customRange.endDate };
+  }
+
   const now = new Date();
   let startDate: Date;
   let endDate = now;
@@ -33,6 +44,7 @@ function getDateRange(period: 'week' | 'month' | '3months') {
       endDate = endOfMonth(now);
       break;
     case '3months':
+    default:
       startDate = subMonths(startOfMonth(now), 2);
       endDate = endOfMonth(now);
       break;
@@ -41,11 +53,15 @@ function getDateRange(period: 'week' | 'month' | '3months') {
   return { startDate, endDate };
 }
 
-export function useAttendanceReport(period: 'week' | 'month' | '3months', teamName?: string) {
+export function useAttendanceReport(
+  period: ReportPeriod, 
+  teamName?: string,
+  customRange?: DateRange
+) {
   return useQuery({
-    queryKey: ['reports', 'attendance', period, teamName],
+    queryKey: ['reports', 'attendance', period, teamName, customRange?.startDate?.toISOString(), customRange?.endDate?.toISOString()],
     queryFn: async () => {
-      const { startDate, endDate } = getDateRange(period);
+      const { startDate, endDate } = getDateRange(period, customRange);
 
       // Build query
       let query = supabase
@@ -104,11 +120,15 @@ export function useAttendanceReport(period: 'week' | 'month' | '3months', teamNa
   });
 }
 
-export function useServiceReport(period: 'week' | 'month' | '3months', teamName?: string) {
+export function useServiceReport(
+  period: ReportPeriod, 
+  teamName?: string,
+  customRange?: DateRange
+) {
   return useQuery({
-    queryKey: ['reports', 'services', period, teamName],
+    queryKey: ['reports', 'services', period, teamName, customRange?.startDate?.toISOString(), customRange?.endDate?.toISOString()],
     queryFn: async () => {
-      const { startDate, endDate } = getDateRange(period);
+      const { startDate, endDate } = getDateRange(period, customRange);
 
       // Get all services in the period with their schedules
       const { data: services, error } = await supabase

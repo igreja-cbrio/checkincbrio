@@ -4,34 +4,57 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAttendanceReport, useServiceReport } from '@/hooks/useReports';
-import { useUnscheduledReport } from '@/hooks/useUnscheduledReport';
-import { useWeeklyReport } from '@/hooks/useWeeklyReport';
+import { useAttendanceReport, useServiceReport, ReportPeriod } from '@/hooks/useReports';
+import { useUnscheduledReport, UnscheduledPeriod } from '@/hooks/useUnscheduledReport';
+import { useWeeklyReport, WeeklyPeriod } from '@/hooks/useWeeklyReport';
 import { useTeams } from '@/hooks/useTeams';
 import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { format, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WeeklyReportCard } from '@/components/reports/WeeklyReportCard';
 import { ReportPrintButton } from '@/components/reports/ReportPrintButton';
-
-type Period = 'week' | 'month' | '3months';
-type WeeklyPeriod = 'last_week' | 'month' | '3months';
+import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
-  const [period, setPeriod] = useState<Period>('month');
+  const [period, setPeriod] = useState<ReportPeriod>('month');
   const [weeklyPeriod, setWeeklyPeriod] = useState<WeeklyPeriod>('last_week');
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('weekly');
   
+  // Custom date ranges
+  const [weeklyCustomRange, setWeeklyCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
+  const [overviewCustomRange, setOverviewCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
+  
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
   
-  const { data: attendanceData, isLoading: loadingAttendance } = useAttendanceReport(period, teamFilter);
-  const { data: serviceData, isLoading: loadingServices } = useServiceReport(period, teamFilter);
-  const { data: unscheduledData, isLoading: loadingUnscheduled } = useUnscheduledReport(period);
-  const { data: weeklyData, isLoading: loadingWeekly } = useWeeklyReport(weeklyPeriod, teamFilter);
+  const { data: attendanceData, isLoading: loadingAttendance } = useAttendanceReport(
+    period, 
+    teamFilter,
+    period === 'custom' ? overviewCustomRange : undefined
+  );
+  const { data: serviceData, isLoading: loadingServices } = useServiceReport(
+    period, 
+    teamFilter,
+    period === 'custom' ? overviewCustomRange : undefined
+  );
+  const { data: unscheduledData, isLoading: loadingUnscheduled } = useUnscheduledReport(
+    period as UnscheduledPeriod,
+    period === 'custom' ? overviewCustomRange : undefined
+  );
+  const { data: weeklyData, isLoading: loadingWeekly } = useWeeklyReport(
+    weeklyPeriod, 
+    teamFilter,
+    weeklyPeriod === 'custom' ? weeklyCustomRange : undefined
+  );
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
@@ -46,11 +69,29 @@ export default function ReportsPage() {
   const totalServices = serviceData?.length || 0;
   const unscheduledCount = unscheduledData?.length || 0;
 
-  const weeklyPeriodLabels: Record<WeeklyPeriod, string> = {
-    last_week: 'Última Semana',
-    month: 'Mês Atual',
-    '3months': 'Últimos 3 Meses',
+  const getWeeklyPeriodLabel = () => {
+    if (weeklyPeriod === 'custom') {
+      return `${format(weeklyCustomRange.startDate, 'dd/MM', { locale: ptBR })} - ${format(weeklyCustomRange.endDate, 'dd/MM/yyyy', { locale: ptBR })}`;
+    }
+    const labels: Record<string, string> = {
+      last_week: 'Última Semana',
+      month: 'Mês Atual',
+      '3months': 'Últimos 3 Meses',
+    };
+    return labels[weeklyPeriod];
   };
+
+  const weeklyPeriodOptions = [
+    { value: 'last_week', label: 'Última Semana' },
+    { value: 'month', label: 'Mês Atual' },
+    { value: '3months', label: 'Últimos 3 Meses' },
+  ];
+
+  const overviewPeriodOptions = [
+    { value: 'week', label: 'Semana' },
+    { value: 'month', label: 'Mês' },
+    { value: '3months', label: '3 Meses' },
+  ];
 
   return (
     <div className="space-y-4">
@@ -61,7 +102,7 @@ export default function ReportsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === 'weekly' && <ReportPrintButton title={`Relatório - ${weeklyPeriodLabels[weeklyPeriod]}`} />}
+          {activeTab === 'weekly' && <ReportPrintButton title={`Relatório - ${getWeeklyPeriodLabel()}`} />}
           
           <Select value={selectedTeam} onValueChange={setSelectedTeam}>
             <SelectTrigger className="w-[160px]">
@@ -86,34 +127,28 @@ export default function ReportsPage() {
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <div className="flex items-center justify-between print:hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
             <TabsList>
               <TabsTrigger value="weekly">Relatório Semanal</TabsTrigger>
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             </TabsList>
 
             {activeTab === 'weekly' ? (
-              <Select value={weeklyPeriod} onValueChange={(v) => setWeeklyPeriod(v as WeeklyPeriod)}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="last_week">Última Semana</SelectItem>
-                  <SelectItem value="month">Mês Atual</SelectItem>
-                  <SelectItem value="3months">Últimos 3 Meses</SelectItem>
-                </SelectContent>
-              </Select>
+              <PeriodFilter
+                period={weeklyPeriod}
+                onPeriodChange={(v) => setWeeklyPeriod(v as WeeklyPeriod)}
+                customRange={weeklyCustomRange}
+                onCustomRangeChange={setWeeklyCustomRange}
+                periodOptions={weeklyPeriodOptions}
+              />
             ) : (
-              <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week">Semana</SelectItem>
-                  <SelectItem value="month">Mês</SelectItem>
-                  <SelectItem value="3months">3 meses</SelectItem>
-                </SelectContent>
-              </Select>
+              <PeriodFilter
+                period={period}
+                onPeriodChange={(v) => setPeriod(v as ReportPeriod)}
+                customRange={overviewCustomRange}
+                onCustomRangeChange={setOverviewCustomRange}
+                periodOptions={overviewPeriodOptions}
+              />
             )}
           </div>
 
@@ -122,7 +157,7 @@ export default function ReportsPage() {
             {weeklyData && (
               <WeeklyReportCard 
                 data={weeklyData} 
-                periodLabel={weeklyPeriodLabels[weeklyPeriod]} 
+                periodLabel={getWeeklyPeriodLabel()} 
               />
             )}
           </TabsContent>
