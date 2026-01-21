@@ -167,7 +167,7 @@ serve(async (req) => {
         for (const member of teamData.data || []) {
           // Sync confirmed (C) and pending/unconfirmed (U) members
           const memberStatus = member.attributes.status;
-          if (!['C', 'U'].includes(memberStatus)) continue;
+          if (!['C', 'U', 'D'].includes(memberStatus)) continue;
 
           const personId = member.relationships?.person?.data?.id || member.id;
           const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined' };
