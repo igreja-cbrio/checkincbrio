@@ -27,7 +27,18 @@ export interface WeeklyReportSummary {
   volunteerList: VolunteerServed[];
 }
 
-function getWeeklyDateRange(period: 'last_week' | 'month' | '3months') {
+export type WeeklyPeriod = 'last_week' | 'month' | '3months' | 'custom';
+
+export interface DateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+function getWeeklyDateRange(period: WeeklyPeriod, customRange?: DateRange) {
+  if (period === 'custom' && customRange) {
+    return { startDate: customRange.startDate, endDate: customRange.endDate };
+  }
+
   const now = new Date();
   let startDate: Date;
   let endDate: Date;
@@ -44,6 +55,7 @@ function getWeeklyDateRange(period: 'last_week' | 'month' | '3months') {
       endDate = endOfMonth(now);
       break;
     case '3months':
+    default:
       startDate = subMonths(startOfMonth(now), 2);
       endDate = endOfMonth(now);
       break;
@@ -52,11 +64,15 @@ function getWeeklyDateRange(period: 'last_week' | 'month' | '3months') {
   return { startDate, endDate };
 }
 
-export function useWeeklyReport(period: 'last_week' | 'month' | '3months', teamName?: string) {
+export function useWeeklyReport(
+  period: WeeklyPeriod, 
+  teamName?: string,
+  customRange?: DateRange
+) {
   return useQuery({
-    queryKey: ['weekly-report', period, teamName],
+    queryKey: ['weekly-report', period, teamName, customRange?.startDate?.toISOString(), customRange?.endDate?.toISOString()],
     queryFn: async (): Promise<WeeklyReportSummary> => {
-      const { startDate, endDate } = getWeeklyDateRange(period);
+      const { startDate, endDate } = getWeeklyDateRange(period, customRange);
 
       // Fetch services with their schedules and check-ins
       const { data: services, error } = await supabase

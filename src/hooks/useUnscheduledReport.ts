@@ -11,28 +11,49 @@ export interface UnscheduledCheckIn {
   source: 'system' | 'planning_center';
 }
 
-export function useUnscheduledReport(period: 'week' | 'month' | '3months') {
-  return useQuery({
-    queryKey: ['reports', 'unscheduled', period],
-    queryFn: async () => {
-      const now = new Date();
-      let startDate: Date;
-      let endDate = now;
+export type UnscheduledPeriod = 'week' | 'month' | '3months' | 'custom';
 
-      switch (period) {
-        case 'week':
-          startDate = startOfWeek(now, { weekStartsOn: 0 });
-          endDate = endOfWeek(now, { weekStartsOn: 0 });
-          break;
-        case 'month':
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
-          break;
-        case '3months':
-          startDate = subMonths(startOfMonth(now), 2);
-          endDate = endOfMonth(now);
-          break;
-      }
+export interface DateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+function getUnscheduledDateRange(period: UnscheduledPeriod, customRange?: DateRange) {
+  if (period === 'custom' && customRange) {
+    return { startDate: customRange.startDate, endDate: customRange.endDate };
+  }
+
+  const now = new Date();
+  let startDate: Date;
+  let endDate = now;
+
+  switch (period) {
+    case 'week':
+      startDate = startOfWeek(now, { weekStartsOn: 0 });
+      endDate = endOfWeek(now, { weekStartsOn: 0 });
+      break;
+    case 'month':
+      startDate = startOfMonth(now);
+      endDate = endOfMonth(now);
+      break;
+    case '3months':
+    default:
+      startDate = subMonths(startOfMonth(now), 2);
+      endDate = endOfMonth(now);
+      break;
+  }
+
+  return { startDate, endDate };
+}
+
+export function useUnscheduledReport(
+  period: UnscheduledPeriod,
+  customRange?: DateRange
+) {
+  return useQuery({
+    queryKey: ['reports', 'unscheduled', period, customRange?.startDate?.toISOString(), customRange?.endDate?.toISOString()],
+    queryFn: async () => {
+      const { startDate, endDate } = getUnscheduledDateRange(period, customRange);
 
       const { data, error } = await supabase
         .from('check_ins')
