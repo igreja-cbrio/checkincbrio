@@ -3,12 +3,40 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Check, UserPlus, AlertTriangle } from 'lucide-react';
+import { Search, Check, UserPlus, AlertTriangle, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 import type { ScheduleWithDetails } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+
+function ConfirmationBadge({ status }: { status: string | null }) {
+  if (status === 'confirmed') {
+    return (
+      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Confirmou
+      </Badge>
+    );
+  }
+  if (status === 'pending') {
+    return (
+      <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Pendente
+      </Badge>
+    );
+  }
+  if (status === 'declined') {
+    return (
+      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/30">
+        <XCircle className="h-3 w-3 mr-1" />
+        Recusou
+      </Badge>
+    );
+  }
+  return null;
+}
 
 interface ManualCheckinProps {
   schedules: ScheduleWithDetails[];
@@ -116,7 +144,10 @@ export function ManualCheckin({
                 className="flex items-center justify-between p-3 rounded-lg border bg-card"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{schedule.volunteer_name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium truncate">{schedule.volunteer_name}</p>
+                    <ConfirmationBadge status={schedule.confirmation_status} />
+                  </div>
                   <div className="flex gap-1 flex-wrap mt-1">
                     {schedule.team_name && (
                       <Badge variant="secondary" className="text-xs">

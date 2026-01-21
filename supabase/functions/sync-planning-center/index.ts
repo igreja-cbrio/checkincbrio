@@ -109,24 +109,29 @@ serve(async (req) => {
     let totalServices = 0;
     let totalSchedules = 0;
 
-    for (const serviceType of typesData.data || []) {
+    // Process service types in parallel with limited concurrency
+    const processServiceType = async (serviceType: any) => {
+      let typeServices = 0;
+      let typeSchedules = 0;
+      
       console.log(`Processing service type: ${serviceType.attributes.name}`);
       
-      // Fetch upcoming plans for each service type
+      // Fetch only next 3 upcoming plans (reduced from 10)
       const plansRes = await fetch(
-        `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=10`,
+        `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=3`,
         { headers: { 'Authorization': `Basic ${credentials}` } }
       );
 
       if (!plansRes.ok) {
         console.error(`Error fetching plans for ${serviceType.attributes.name}`);
-        continue;
+        return { services: 0, schedules: 0 };
       }
 
       const plansData = await plansRes.json();
       console.log(`Found ${plansData.data?.length || 0} plans for ${serviceType.attributes.name}`);
 
-      for (const plan of plansData.data || []) {
+      // Process plans in parallel
+      const planPromises = (plansData.data || []).map(async (plan: any) => {
         const serviceDate = plan.attributes.sort_date;
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
@@ -144,10 +149,10 @@ serve(async (req) => {
 
         if (serviceError) {
           console.error('Error upserting service:', serviceError);
-          continue;
+          return { services: 0, schedules: 0 };
         }
 
-        totalServices++;
+        typeServices++;
         console.log(`Synced service: ${serviceName} on ${serviceDate}`);
 
         // Fetch team members for this plan
@@ -158,55 +163,70 @@ serve(async (req) => {
 
         if (!teamRes.ok) {
           console.error(`Error fetching team for plan ${plan.id}`);
-          continue;
+          return { services: 1, schedules: 0 };
         }
 
         const teamData = await teamRes.json();
         console.log(`Found ${teamData.data?.length || 0} team members`);
 
+        // Prepare batch data for schedules
+        const schedulesToUpsert: any[] = [];
+        
         for (const member of teamData.data || []) {
-          // Sync confirmed (C) and pending/unconfirmed (U) members
           const memberStatus = member.attributes.status;
           if (!['C', 'U', 'D'].includes(memberStatus)) continue;
 
           const personId = member.relationships?.person?.data?.id || member.id;
           const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined' };
           const confirmationStatus = statusMap[memberStatus] || 'unknown';
+          
+          const teamPosition = member.attributes.team_position_name || '';
+          const parts = teamPosition.split(' - ');
+          
+          schedulesToUpsert.push({
+            service_id: service.id,
+            planning_center_person_id: personId,
+            volunteer_name: member.attributes.name,
+            team_name: parts[0] || null,
+            position_name: parts[1] || null,
+            confirmation_status: confirmationStatus,
+          });
+        }
 
-          // Check if schedule already exists
-          const { data: existing } = await supabaseClient
+        // Batch upsert all schedules at once
+        if (schedulesToUpsert.length > 0) {
+          const { error: upsertError } = await supabaseClient
             .from('schedules')
-            .select('id, confirmation_status')
-            .eq('service_id', service.id)
-            .eq('planning_center_person_id', personId)
-            .maybeSingle();
-
-          if (existing) {
-            // Update status if changed
-            if (existing.confirmation_status !== confirmationStatus) {
-              await supabaseClient
-                .from('schedules')
-                .update({ confirmation_status: confirmationStatus })
-                .eq('id', existing.id);
-            }
-          } else {
-            const teamPosition = member.attributes.team_position_name || '';
-            const parts = teamPosition.split(' - ');
-            
-            const { error: insertError } = await supabaseClient.from('schedules').insert({
-              service_id: service.id,
-              planning_center_person_id: personId,
-              volunteer_name: member.attributes.name,
-              team_name: parts[0] || null,
-              position_name: parts[1] || null,
-              confirmation_status: confirmationStatus,
+            .upsert(schedulesToUpsert, { 
+              onConflict: 'service_id,planning_center_person_id',
+              ignoreDuplicates: false 
             });
-
-            if (!insertError) {
-              totalSchedules++;
-            }
+          
+          if (!upsertError) {
+            typeSchedules += schedulesToUpsert.length;
+          } else {
+            console.error('Batch upsert error:', upsertError);
           }
         }
+
+        return { services: 1, schedules: schedulesToUpsert.length };
+      });
+
+      await Promise.all(planPromises);
+      return { services: typeServices, schedules: typeSchedules };
+    };
+
+    // Process all service types in parallel (batch of 5 at a time)
+    const serviceTypes = typesData.data || [];
+    const batchSize = 5;
+    
+    for (let i = 0; i < serviceTypes.length; i += batchSize) {
+      const batch = serviceTypes.slice(i, i + batchSize);
+      const results = await Promise.all(batch.map(processServiceType));
+      
+      for (const result of results) {
+        totalServices += result.services;
+        totalSchedules += result.schedules;
       }
     }
 
