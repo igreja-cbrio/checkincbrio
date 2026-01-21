@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface VolunteerQrCode {
+  planning_center_person_id: string;
+  volunteer_name: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -108,6 +113,7 @@ serve(async (req) => {
 
     let totalServices = 0;
     let totalSchedules = 0;
+    const allVolunteers = new Map<string, VolunteerQrCode>();
 
     // Process service types in parallel with limited concurrency
     const processServiceType = async (serviceType: any) => {
@@ -191,6 +197,14 @@ serve(async (req) => {
             position_name: parts[1] || null,
             confirmation_status: confirmationStatus,
           });
+
+          // Collect volunteer for QR code generation
+          if (personId && member.attributes.name) {
+            allVolunteers.set(personId, {
+              planning_center_person_id: personId,
+              volunteer_name: member.attributes.name,
+            });
+          }
         }
 
         // Batch upsert all schedules at once
@@ -232,10 +246,34 @@ serve(async (req) => {
 
     console.log(`Sync completed: ${totalServices} services, ${totalSchedules} new schedules`);
 
+    // Generate QR codes for all collected volunteers
+    const volunteerQrCodes = Array.from(allVolunteers.values());
+    if (volunteerQrCodes.length > 0) {
+      console.log(`Generating QR codes for ${volunteerQrCodes.length} volunteers...`);
+      
+      // Process in batches of 100
+      const batchSize = 100;
+      for (let i = 0; i < volunteerQrCodes.length; i += batchSize) {
+        const batch = volunteerQrCodes.slice(i, i + batchSize);
+        const { error: qrError } = await supabaseClient
+          .from('volunteer_qrcodes')
+          .upsert(batch, { 
+            onConflict: 'planning_center_person_id',
+            ignoreDuplicates: true 
+          });
+        
+        if (qrError) {
+          console.error('Error upserting volunteer QR codes:', qrError);
+        }
+      }
+      console.log(`QR codes generated for ${volunteerQrCodes.length} volunteers`);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       services: totalServices,
-      newSchedules: totalSchedules 
+      newSchedules: totalSchedules,
+      qrCodesGenerated: volunteerQrCodes.length
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

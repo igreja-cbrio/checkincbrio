@@ -197,6 +197,36 @@ export type Database = {
         }
         Relationships: []
       }
+      volunteer_qrcodes: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          id: string
+          planning_center_person_id: string
+          qr_code: string
+          updated_at: string | null
+          volunteer_name: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          id?: string
+          planning_center_person_id: string
+          qr_code?: string
+          updated_at?: string | null
+          volunteer_name: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          id?: string
+          planning_center_person_id?: string
+          qr_code?: string
+          updated_at?: string | null
+          volunteer_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

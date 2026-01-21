@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QRCodeSVG } from 'qrcode.react';
-import { Search, Eye, History, QrCode } from 'lucide-react';
+import { Search, Eye, History, QrCode, UserPlus } from 'lucide-react';
 import { QrCodeModal } from '@/components/qrcodes/QrCodeModal';
 import { QrCodePdfExport } from '@/components/qrcodes/QrCodePdfExport';
+import { PlanningCenterQrSearch } from '@/components/qrcodes/PlanningCenterQrSearch';
 
 export default function QrCodeManagementPage() {
   const { isLeader } = useAuth();
@@ -34,6 +35,12 @@ export default function QrCodeManagementPage() {
     setModalOpen(true);
   };
 
+  const handleVolunteerCreated = (volunteer: VolunteerWithQrCode) => {
+    // Open the QR code modal for the newly created volunteer
+    setSelectedVolunteer(volunteer);
+    setModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -43,13 +50,16 @@ export default function QrCodeManagementPage() {
             Gestão de QR Codes
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gerar crachás para check-in de voluntários
+            Voluntários ativos nos últimos 3 meses
           </p>
         </div>
         
-        {volunteers && volunteers.length > 0 && (
-          <QrCodePdfExport volunteers={filteredVolunteers} />
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <PlanningCenterQrSearch onVolunteerCreated={handleVolunteerCreated} />
+          {volunteers && volunteers.length > 0 && (
+            <QrCodePdfExport volunteers={filteredVolunteers} />
+          )}
+        </div>
       </div>
 
       <div className="relative">
@@ -100,13 +110,17 @@ export default function QrCodeManagementPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold truncate">{volunteer.full_name}</p>
-                        {hasQrCode ? (
+                    {volunteer.source === 'profile' ? (
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/30">
+                            Com Conta
+                          </Badge>
+                        ) : hasQrCode ? (
                           <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
                             QR Ativo
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
-                            ID Temporário
+                            Sem QR
                           </Badge>
                         )}
                       </div>
