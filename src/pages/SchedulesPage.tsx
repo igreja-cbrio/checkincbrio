@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUpcomingServices } from '@/hooks/useServices';
 import { useServiceSchedules, useMySchedules } from '@/hooks/useSchedules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Calendar, ChevronDown, ChevronRight, Check, WifiOff } from 'lucide-react';
+import { Loader2, Calendar, ChevronDown, ChevronRight, Check, WifiOff, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -148,7 +148,15 @@ export default function SchedulesPage() {
                     <CardContent className="py-3">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{schedule.volunteer_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">{schedule.volunteer_name}</p>
+                            {schedule.confirmation_status === 'pending' && (
+                              <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30 shrink-0">
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Não confirmou
+                              </Badge>
+                            )}
+                          </div>
                           <div className="flex gap-1 mt-1">
                             {schedule.team_name && (
                               <Badge variant="secondary" className="text-xs">{schedule.team_name}</Badge>
@@ -222,7 +230,14 @@ function ServiceScheduleCard({ serviceId, serviceName, scheduledAt }: { serviceI
                     key={schedule.id}
                     className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50"
                   >
-                    <span className="truncate flex-1">{schedule.volunteer_name}</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="truncate">{schedule.volunteer_name}</span>
+                      {schedule.confirmation_status === 'pending' && (
+                        <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30 shrink-0">
+                          <AlertCircle className="h-2 w-2" />
+                        </Badge>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground shrink-0 ml-2">
                       {schedule.team_name}
                     </span>

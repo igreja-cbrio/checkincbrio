@@ -165,20 +165,31 @@ serve(async (req) => {
         console.log(`Found ${teamData.data?.length || 0} team members`);
 
         for (const member of teamData.data || []) {
-          // Only sync confirmed members
-          if (member.attributes.status !== 'C') continue;
+          // Sync confirmed (C) and pending/unconfirmed (U) members
+          const memberStatus = member.attributes.status;
+          if (!['C', 'U'].includes(memberStatus)) continue;
 
           const personId = member.relationships?.person?.data?.id || member.id;
+          const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined' };
+          const confirmationStatus = statusMap[memberStatus] || 'unknown';
 
           // Check if schedule already exists
           const { data: existing } = await supabaseClient
             .from('schedules')
-            .select('id')
+            .select('id, confirmation_status')
             .eq('service_id', service.id)
             .eq('planning_center_person_id', personId)
             .maybeSingle();
 
-          if (!existing) {
+          if (existing) {
+            // Update status if changed
+            if (existing.confirmation_status !== confirmationStatus) {
+              await supabaseClient
+                .from('schedules')
+                .update({ confirmation_status: confirmationStatus })
+                .eq('id', existing.id);
+            }
+          } else {
             const teamPosition = member.attributes.team_position_name || '';
             const parts = teamPosition.split(' - ');
             
@@ -188,6 +199,7 @@ serve(async (req) => {
               volunteer_name: member.attributes.name,
               team_name: parts[0] || null,
               position_name: parts[1] || null,
+              confirmation_status: confirmationStatus,
             });
 
             if (!insertError) {
