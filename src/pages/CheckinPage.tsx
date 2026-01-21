@@ -8,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useTodaysServices } from '@/hooks/useServices';
 import { useServiceSchedules, useCheckIn, useScheduleByQrCode, useUnscheduledCheckIns, QrCodeResult } from '@/hooks/useSchedules';
+import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 
 export default function CheckinPage() {
   const { isLeader } = useAuth();
@@ -28,10 +30,20 @@ export default function CheckinPage() {
   const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
   const qrCodeMutation = useScheduleByQrCode();
+  const syncMutation = useSyncPlanningCenter();
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  const handleSync = async () => {
+    try {
+      const result = await syncMutation.mutateAsync();
+      toast.success(`Sincronizado! ${result.services} cultos, ${result.newSchedules} novas escalas.`);
+    } catch (error: any) {
+      toast.error(error.message || 'Erro ao sincronizar');
+    }
+  };
 
   const handleQrScan = async (qrCode: string) => {
     if (qrCodeMutation.isPending || checkInMutation.isPending) return;
@@ -110,9 +122,24 @@ export default function CheckinPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Check-in</h1>
-        <p className="text-sm text-muted-foreground">Registre a presença</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Check-in</h1>
+          <p className="text-sm text-muted-foreground">Registre a presença</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleSync}
+          disabled={syncMutation.isPending}
+        >
+          {syncMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          <span className="ml-2">Sincronizar</span>
+        </Button>
       </div>
 
       {/* Service Selector */}
