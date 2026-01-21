@@ -117,7 +117,12 @@ export function useCheckIn() {
 
 export interface QrCodeResult {
   schedule?: any;
-  profile: { id: string; planning_center_id: string | null; full_name?: string };
+  profile: { 
+    id: string | null; 
+    planning_center_id: string | null; 
+    full_name?: string;
+    type: 'profile' | 'volunteer_qrcode';
+  };
   isUnscheduled: boolean;
   volunteerName: string;
 }
@@ -125,15 +130,45 @@ export interface QrCodeResult {
 export function useScheduleByQrCode() {
   return useMutation({
     mutationFn: async (qrCode: string): Promise<QrCodeResult> => {
-      // First find the profile with this QR code
-      const { data: profile, error: profileError } = await supabase
+      // First try to find in profiles table
+      const { data: profile } = await supabase
         .from('profiles')
         .select('id, planning_center_id, full_name')
         .eq('qr_code', qrCode)
-        .single();
+        .maybeSingle();
       
-      if (profileError || !profile) {
-        throw new Error('Voluntário não encontrado');
+      let volunteerData: {
+        type: 'profile' | 'volunteer_qrcode';
+        id: string | null;
+        planning_center_id: string | null;
+        name: string;
+      };
+
+      if (profile) {
+        volunteerData = {
+          type: 'profile',
+          id: profile.id,
+          planning_center_id: profile.planning_center_id,
+          name: profile.full_name || 'Voluntário'
+        };
+      } else {
+        // If not found in profiles, try volunteer_qrcodes table
+        const { data: volunteerQr } = await supabase
+          .from('volunteer_qrcodes')
+          .select('id, planning_center_person_id, volunteer_name')
+          .eq('qr_code', qrCode)
+          .maybeSingle();
+
+        if (!volunteerQr) {
+          throw new Error('Voluntário não encontrado');
+        }
+
+        volunteerData = {
+          type: 'volunteer_qrcode',
+          id: null, // No user account
+          planning_center_id: volunteerQr.planning_center_person_id,
+          name: volunteerQr.volunteer_name
+        };
       }
 
       // Get today's date range
@@ -142,24 +177,41 @@ export function useScheduleByQrCode() {
       const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
 
       // Find today's schedule for this volunteer
-      const { data: schedules, error: scheduleError } = await supabase
+      let scheduleQuery = supabase
         .from('schedules')
         .select(`
           *,
           service:services!inner(*)
         `)
-        .or(`volunteer_id.eq.${profile.id},planning_center_person_id.eq.${profile.planning_center_id}`)
         .gte('service.scheduled_at', startOfDay)
         .lt('service.scheduled_at', endOfDay);
+
+      // Build the filter based on available data
+      if (volunteerData.type === 'profile' && volunteerData.id) {
+        scheduleQuery = scheduleQuery.or(
+          `volunteer_id.eq.${volunteerData.id},planning_center_person_id.eq.${volunteerData.planning_center_id}`
+        );
+      } else if (volunteerData.planning_center_id) {
+        scheduleQuery = scheduleQuery.eq('planning_center_person_id', volunteerData.planning_center_id);
+      }
+
+      const { data: schedules, error: scheduleError } = await scheduleQuery;
       
       if (scheduleError) throw scheduleError;
+
+      const profileResult = {
+        id: volunteerData.id,
+        planning_center_id: volunteerData.planning_center_id,
+        full_name: volunteerData.name,
+        type: volunteerData.type
+      };
 
       // No schedule found for today - return as unscheduled
       if (!schedules || schedules.length === 0) {
         return {
-          profile,
+          profile: profileResult,
           isUnscheduled: true,
-          volunteerName: profile.full_name || 'Voluntário',
+          volunteerName: volunteerData.name,
         };
       }
 
@@ -176,17 +228,19 @@ export function useScheduleByQrCode() {
       // All schedules checked in - also check for unscheduled check-in today
       if (!uncheckedSchedule) {
         // Check if they already have an unscheduled check-in today
-        const { data: unscheduledCheckIn } = await supabase
-          .from('check_ins')
-          .select('*')
-          .eq('volunteer_id', profile.id)
-          .eq('is_unscheduled', true)
-          .gte('checked_in_at', startOfDay)
-          .lt('checked_in_at', endOfDay)
-          .maybeSingle();
+        if (volunteerData.id) {
+          const { data: unscheduledCheckIn } = await supabase
+            .from('check_ins')
+            .select('*')
+            .eq('volunteer_id', volunteerData.id)
+            .eq('is_unscheduled', true)
+            .gte('checked_in_at', startOfDay)
+            .lt('checked_in_at', endOfDay)
+            .maybeSingle();
 
-        if (unscheduledCheckIn) {
-          throw new Error('Voluntário já fez check-in hoje');
+          if (unscheduledCheckIn) {
+            throw new Error('Voluntário já fez check-in hoje');
+          }
         }
 
         throw new Error('Voluntário já fez check-in em todas as escalas de hoje');
@@ -194,7 +248,7 @@ export function useScheduleByQrCode() {
 
       return {
         schedule: uncheckedSchedule,
-        profile,
+        profile: profileResult,
         isUnscheduled: false,
         volunteerName: uncheckedSchedule.volunteer_name,
       };

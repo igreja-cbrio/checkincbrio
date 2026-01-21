@@ -71,8 +71,13 @@ export default function CheckinPage() {
     if (!unscheduledDialog.result || !selectedServiceId) return;
 
     try {
+      // For volunteer_qrcode entries, volunteerId will be null
+      const volunteerId = unscheduledDialog.result.profile.type === 'profile' 
+        ? unscheduledDialog.result.profile.id 
+        : null;
+
       await checkInMutation.mutateAsync({
-        volunteerId: unscheduledDialog.result.profile.id,
+        volunteerId: volunteerId,
         serviceId: selectedServiceId,
         method: 'qr_code',
         isUnscheduled: true,
