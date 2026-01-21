@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, Check } from 'lucide-react';
+import { Calendar, Clock, Users, Check, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ScheduleWithDetails } from '@/types';
@@ -90,10 +90,20 @@ function ScheduleItem({
   schedule: ScheduleWithDetails; 
   showServiceName?: boolean;
 }) {
+  const isPending = schedule.confirmation_status === 'pending';
+  
   return (
     <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
       <div className="space-y-1">
-        <p className="font-medium">{schedule.volunteer_name}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium">{schedule.volunteer_name}</p>
+          {isPending && (
+            <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Não confirmou
+            </Badge>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap">
           {showServiceName && schedule.service && (
             <Badge variant="secondary" className="text-xs">

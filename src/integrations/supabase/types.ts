@@ -104,6 +104,7 @@ export type Database = {
       }
       schedules: {
         Row: {
+          confirmation_status: string | null
           created_at: string
           id: string
           planning_center_person_id: string
@@ -114,6 +115,7 @@ export type Database = {
           volunteer_name: string
         }
         Insert: {
+          confirmation_status?: string | null
           created_at?: string
           id?: string
           planning_center_person_id: string
@@ -124,6 +126,7 @@ export type Database = {
           volunteer_name: string
         }
         Update: {
+          confirmation_status?: string | null
           created_at?: string
           id?: string
           planning_center_person_id?: string

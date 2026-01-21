@@ -34,6 +34,7 @@ export interface Schedule {
   volunteer_name: string;
   team_name: string | null;
   position_name: string | null;
+  confirmation_status: 'confirmed' | 'pending' | 'declined' | null;
   created_at: string;
   service?: Service;
   check_in?: CheckIn | null;
