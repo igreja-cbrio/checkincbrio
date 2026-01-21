@@ -83,10 +83,13 @@ export function ManualCheckin({
   const [searchTerm, setSearchTerm] = useState('');
   const [showAllVolunteers, setShowAllVolunteers] = useState(false);
 
+  // Enable fetching all volunteers when searching or when toggle is on
+  const shouldFetchAll = showAllVolunteers || searchTerm.trim().length >= 2;
+
   // Get all volunteer profiles for unscheduled check-in
   const { data: allVolunteers } = useQuery({
     queryKey: ['profiles', 'volunteers'],
-    enabled: showAllVolunteers,
+    enabled: shouldFetchAll,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
@@ -101,7 +104,7 @@ export function ManualCheckin({
   // Get all volunteer QR codes from Planning Center
   const { data: volunteerQrCodes } = useQuery({
     queryKey: ['volunteer-qrcodes', 'all'],
-    enabled: showAllVolunteers,
+    enabled: shouldFetchAll,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('volunteer_qrcodes')
@@ -116,7 +119,7 @@ export function ManualCheckin({
   // Get today's unscheduled check-ins to filter out already checked in
   const { data: todayUnscheduledCheckIns } = useQuery({
     queryKey: ['check-ins', 'unscheduled', 'today', serviceId],
-    enabled: showAllVolunteers && !!serviceId,
+    enabled: shouldFetchAll && !!serviceId,
     queryFn: async () => {
       const today = new Date();
       const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
@@ -197,9 +200,13 @@ export function ManualCheckin({
 
         <div className="space-y-2 max-h-[50vh] overflow-y-auto">
           {/* Scheduled volunteers */}
-          {filteredSchedules.length === 0 && !showAllVolunteers ? (
+          {filteredSchedules.length === 0 && allUnscheduledVolunteers.length === 0 && searchTerm ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              Nenhum voluntário encontrado
+              Nenhum voluntário encontrado com "{searchTerm}"
+            </p>
+          ) : filteredSchedules.length === 0 && !shouldFetchAll ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nenhum voluntário escalado encontrado
             </p>
           ) : (
             filteredSchedules.map((schedule) => (
@@ -241,7 +248,7 @@ export function ManualCheckin({
           )}
 
           {/* Divider for unscheduled section */}
-          {showAllVolunteers && allUnscheduledVolunteers.length > 0 && filteredSchedules.length > 0 && (
+          {shouldFetchAll && allUnscheduledVolunteers.length > 0 && filteredSchedules.length > 0 && (
             <div className="flex items-center gap-2 py-2">
               <div className="flex-1 h-px bg-border" />
               <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -253,7 +260,7 @@ export function ManualCheckin({
           )}
 
           {/* Unscheduled volunteers */}
-          {showAllVolunteers && allUnscheduledVolunteers.map((volunteer) => (
+          {shouldFetchAll && allUnscheduledVolunteers.map((volunteer) => (
             <div
               key={`${volunteer.source}-${volunteer.id}`}
               className="flex items-center justify-between p-3 rounded-lg border border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900"
