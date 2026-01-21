@@ -12,6 +12,7 @@ import MyQrCodePage from "./pages/MyQrCodePage";
 import SchedulesPage from "./pages/SchedulesPage";
 import ReportsPage from "./pages/ReportsPage";
 import AdminPage from "./pages/AdminPage";
+import QrCodeManagementPage from "./pages/QrCodeManagementPage";
 import CheckInHistoryPage from "./pages/CheckInHistoryPage";
 import ProfilePage from "./pages/ProfilePage";
 import PlanningCenterCallback from "./pages/PlanningCenterCallback";
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/qr-codes" element={<QrCodeManagementPage />} />
               <Route path="/history" element={<CheckInHistoryPage />} />
               <Route path="/history/:volunteerId" element={<CheckInHistoryPage />} />
               <Route path="/history/by-name/:volunteerName" element={<CheckInHistoryPage />} />
