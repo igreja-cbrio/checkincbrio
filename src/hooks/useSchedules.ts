@@ -99,7 +99,13 @@ export function useCheckIn() {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        // Handle unique constraint violation (PostgreSQL error code 23505)
+        if (error.code === '23505') {
+          throw new Error('Check-in já foi realizado');
+        }
+        throw error;
+      }
       return data as CheckIn;
     },
     onSuccess: () => {
