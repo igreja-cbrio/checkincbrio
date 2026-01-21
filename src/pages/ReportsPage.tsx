@@ -138,6 +138,16 @@ export default function ReportsPage() {
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(item.checked_in_at), "dd/MM HH:mm", { locale: ptBR })}
                       </span>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${
+                          item.source === 'system' 
+                            ? 'border-green-500 text-green-600' 
+                            : 'border-blue-500 text-blue-600'
+                        }`}
+                      >
+                        {item.source === 'system' ? 'Sistema' : 'PC'}
+                      </Badge>
                       <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
                         {item.method === 'qr_code' ? 'QR' : 'Manual'}
                       </Badge>
