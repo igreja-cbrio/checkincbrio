@@ -51,8 +51,23 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Check if user has leader or admin role - only they can sync
+    const { data: roles } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ['leader', 'admin']);
+
+    if (!roles || roles.length === 0) {
+      console.error('Unauthorized: User does not have leader/admin role');
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - Insufficient permissions' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
-    console.log('User authenticated, proceeding with sync...');
+    console.log('User authorized, proceeding with sync...');
 
     const appId = Deno.env.get('PLANNING_CENTER_APP_ID');
     const secret = Deno.env.get('PLANNING_CENTER_SECRET');
@@ -60,8 +75,7 @@ serve(async (req) => {
     if (!appId || !secret) {
       console.error('Missing Planning Center credentials');
       return new Response(JSON.stringify({ 
-        error: 'Planning Center credentials not configured',
-        details: 'Please add PLANNING_CENTER_APP_ID and PLANNING_CENTER_SECRET' 
+        error: 'Planning Center credentials not configured'
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -82,9 +96,7 @@ serve(async (req) => {
       const errorText = await testRes.text();
       console.error('Planning Center API error:', testRes.status, errorText);
       return new Response(JSON.stringify({ 
-        error: 'Failed to connect to Planning Center',
-        status: testRes.status,
-        details: errorText
+        error: 'Failed to connect to Planning Center'
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -199,7 +211,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Sync error:', message);
-    return new Response(JSON.stringify({ error: message }), {
+    return new Response(JSON.stringify({ error: 'An error occurred during sync' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
