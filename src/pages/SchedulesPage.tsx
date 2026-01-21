@@ -7,10 +7,38 @@ import { Badge } from '@/components/ui/badge';
 import { useUpcomingServices } from '@/hooks/useServices';
 import { useServiceSchedules, useMySchedules } from '@/hooks/useSchedules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Calendar, ChevronDown, ChevronRight, Check, WifiOff, AlertCircle } from 'lucide-react';
+import { Loader2, Calendar, ChevronDown, ChevronRight, Check, WifiOff, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+
+function ConfirmationBadge({ status }: { status: string | null }) {
+  if (status === 'confirmed') {
+    return (
+      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30 shrink-0">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Confirmou
+      </Badge>
+    );
+  }
+  if (status === 'pending') {
+    return (
+      <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30 shrink-0">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Não confirmou
+      </Badge>
+    );
+  }
+  if (status === 'declined') {
+    return (
+      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/30 shrink-0">
+        <XCircle className="h-3 w-3 mr-1" />
+        Recusou
+      </Badge>
+    );
+  }
+  return null;
+}
 
 export default function SchedulesPage() {
   const { isLeader, user } = useAuth();
@@ -53,7 +81,10 @@ export default function SchedulesPage() {
                 <CardContent className="py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{schedule.service.name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{schedule.service.name}</p>
+                        <ConfirmationBadge status={schedule.confirmation_status} />
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(schedule.service.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                       </p>
@@ -150,12 +181,7 @@ export default function SchedulesPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">{schedule.volunteer_name}</p>
-                            {schedule.confirmation_status === 'pending' && (
-                              <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30 shrink-0">
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Não confirmou
-                              </Badge>
-                            )}
+                            <ConfirmationBadge status={schedule.confirmation_status} />
                           </div>
                           <div className="flex gap-1 mt-1">
                             {schedule.team_name && (
@@ -232,11 +258,7 @@ function ServiceScheduleCard({ serviceId, serviceName, scheduledAt }: { serviceI
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <span className="truncate">{schedule.volunteer_name}</span>
-                      {schedule.confirmation_status === 'pending' && (
-                        <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30 shrink-0">
-                          <AlertCircle className="h-2 w-2" />
-                        </Badge>
-                      )}
+                      <ConfirmationBadge status={schedule.confirmation_status} />
                     </div>
                     <span className="text-xs text-muted-foreground shrink-0 ml-2">
                       {schedule.team_name}

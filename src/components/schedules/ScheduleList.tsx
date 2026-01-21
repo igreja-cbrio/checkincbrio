@@ -1,9 +1,37 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Users, Check, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Users, Check, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ScheduleWithDetails } from '@/types';
+
+function ConfirmationBadge({ status }: { status: string | null }) {
+  if (status === 'confirmed') {
+    return (
+      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+        <CheckCircle className="h-3 w-3 mr-1" />
+        Confirmou
+      </Badge>
+    );
+  }
+  if (status === 'pending') {
+    return (
+      <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Não confirmou
+      </Badge>
+    );
+  }
+  if (status === 'declined') {
+    return (
+      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/30">
+        <XCircle className="h-3 w-3 mr-1" />
+        Recusou
+      </Badge>
+    );
+  }
+  return null;
+}
 
 interface ScheduleListProps {
   schedules: ScheduleWithDetails[];
@@ -90,19 +118,12 @@ function ScheduleItem({
   schedule: ScheduleWithDetails; 
   showServiceName?: boolean;
 }) {
-  const isPending = schedule.confirmation_status === 'pending';
-  
   return (
     <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <p className="font-medium">{schedule.volunteer_name}</p>
-          {isPending && (
-            <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
-              <AlertCircle className="h-3 w-3 mr-1" />
-              Não confirmou
-            </Badge>
-          )}
+          <ConfirmationBadge status={schedule.confirmation_status} />
         </div>
         <div className="flex gap-2 flex-wrap">
           {showServiceName && schedule.service && (
