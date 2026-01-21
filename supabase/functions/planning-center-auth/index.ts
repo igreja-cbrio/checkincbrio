@@ -34,6 +34,7 @@ serve(async (req) => {
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('scope', scopes.join(' '));
     authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('prompt', 'login'); // Force individual login for each user
 
     console.log('Generated auth URL for Planning Center OAuth');
 
