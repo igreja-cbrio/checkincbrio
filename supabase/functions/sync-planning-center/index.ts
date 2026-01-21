@@ -180,10 +180,10 @@ serve(async (req) => {
         
         for (const member of teamData.data || []) {
           const memberStatus = member.attributes.status;
-          if (!['C', 'U', 'D'].includes(memberStatus)) continue;
+          if (!['C', 'U', 'D', 'S'].includes(memberStatus)) continue;
 
           const personId = member.relationships?.person?.data?.id || member.id;
-          const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined' };
+          const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined', 'S': 'scheduled' };
           const confirmationStatus = statusMap[memberStatus] || 'unknown';
           
           const teamPosition = member.attributes.team_position_name || '';

@@ -30,6 +30,14 @@ function ConfirmationBadge({ status }: { status: string | null }) {
       </Badge>
     );
   }
+  if (status === 'scheduled') {
+    return (
+      <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/30">
+        <Clock className="h-3 w-3 mr-1" />
+        Escalado
+      </Badge>
+    );
+  }
   return null;
 }
 

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Check, UserPlus, AlertTriangle, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Search, Check, UserPlus, AlertTriangle, CheckCircle, AlertCircle, XCircle, Clock } from 'lucide-react';
 import type { ScheduleWithDetails } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,6 +32,14 @@ function ConfirmationBadge({ status }: { status: string | null }) {
       <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 border-red-500/30">
         <XCircle className="h-3 w-3 mr-1" />
         Recusou
+      </Badge>
+    );
+  }
+  if (status === 'scheduled') {
+    return (
+      <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/30">
+        <Clock className="h-3 w-3 mr-1" />
+        Escalado
       </Badge>
     );
   }
