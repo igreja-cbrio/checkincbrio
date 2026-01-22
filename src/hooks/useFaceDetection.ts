@@ -76,8 +76,8 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 960, min: 480 },
           facingMode: 'user',
         },
       });
@@ -86,8 +86,18 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        
+        // Wait for video to be ready
+        await new Promise<void>((resolve) => {
+          if (videoRef.current) {
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play().then(() => resolve());
+            };
+          }
+        });
+        
         setIsCameraActive(true);
+        console.log('Camera started successfully');
       }
     } catch (err) {
       console.error('Failed to access camera:', err);
@@ -116,12 +126,20 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
 
   const detectFace = useCallback(async (): Promise<Float32Array | null> => {
     if (!videoRef.current || !isReady || !isCameraActive) {
+      console.log('Detection skipped:', { video: !!videoRef.current, isReady, isCameraActive });
+      return null;
+    }
+
+    // Ensure video is ready
+    if (videoRef.current.readyState < 2) {
+      console.log('Video not ready yet');
       return null;
     }
 
     try {
+      // Use higher min confidence for better accuracy
       const detection = await faceapi
-        .detectSingleFace(videoRef.current)
+        .detectSingleFace(videoRef.current, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -142,7 +160,6 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
           if (ctx) {
             ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
             faceapi.draw.drawDetections(canvasRef.current, [resizedDetection]);
-            faceapi.draw.drawFaceLandmarks(canvasRef.current, [resizedDetection]);
           }
         }
         

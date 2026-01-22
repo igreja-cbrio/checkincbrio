@@ -47,7 +47,7 @@ export function FaceEnrollmentDialog({
     detectFace,
     isCameraActive,
     faceDetected,
-  } = useFaceDetection();
+  } = useFaceDetection({ autoDetect: true, detectionInterval: 300 });
 
   const enrollmentMutation = useFaceEnrollment();
 
@@ -124,7 +124,7 @@ export function FaceEnrollmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
@@ -156,7 +156,7 @@ export function FaceEnrollmentDialog({
           {isReady && !modelsLoading && (
             <>
               {capturedPhotoUrl ? (
-                <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-muted">
+                <div className="relative rounded-lg overflow-hidden aspect-[3/4] bg-muted">
                   <img
                     src={capturedPhotoUrl}
                     alt="Foto capturada"

@@ -40,7 +40,7 @@ export function FaceCamera({
     <div
       ref={containerRef}
       className={cn(
-        'relative overflow-hidden rounded-lg bg-muted aspect-[4/3]',
+        'relative overflow-hidden rounded-lg bg-muted aspect-[3/4]',
         className
       )}
     >
@@ -59,35 +59,35 @@ export function FaceCamera({
         className="absolute inset-0 w-full h-full object-cover scale-x-[-1] pointer-events-none"
       />
       
-      {/* Oval guide overlay */}
+      {/* Oval guide overlay - much larger area */}
       {showOvalGuide && isCameraActive && (
         <div className="absolute inset-0 pointer-events-none">
           {/* Semi-transparent overlay with oval cutout */}
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <svg className="w-full h-full" viewBox="0 0 100 133" preserveAspectRatio="none">
             <defs>
               <mask id="oval-mask">
-                <rect width="100" height="100" fill="white" />
-                <ellipse cx="50" cy="45" rx="22" ry="30" fill="black" />
+                <rect width="100" height="133" fill="white" />
+                <ellipse cx="50" cy="55" rx="38" ry="48" fill="black" />
               </mask>
             </defs>
             <rect
               width="100"
-              height="100"
-              fill="rgba(0,0,0,0.5)"
+              height="133"
+              fill="rgba(0,0,0,0.4)"
               mask="url(#oval-mask)"
             />
             <ellipse
               cx="50"
-              cy="45"
-              rx="22"
-              ry="30"
+              cy="55"
+              rx="38"
+              ry="48"
               fill="none"
-              stroke={faceDetected ? 'hsl(var(--primary))' : 'white'}
-              strokeWidth="0.5"
-              strokeDasharray={faceDetected ? '0' : '2 1'}
+              stroke={faceDetected ? 'hsl(142, 76%, 36%)' : 'white'}
+              strokeWidth="0.8"
+              strokeDasharray={faceDetected ? '0' : '3 2'}
               className={cn(
                 'transition-all duration-300',
-                faceDetected && 'animate-pulse'
+                faceDetected && 'drop-shadow-[0_0_8px_hsl(142,76%,36%)]'
               )}
             />
           </svg>
@@ -96,13 +96,13 @@ export function FaceCamera({
 
       {/* Status indicator */}
       {isCameraActive && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
           <div
             className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+              'px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 shadow-lg',
               faceDetected
-                ? 'bg-primary/90 text-primary-foreground'
-                : 'bg-muted-foreground/80 text-white'
+                ? 'bg-green-500 text-white'
+                : 'bg-black/70 text-white backdrop-blur-sm'
             )}
           >
             {faceDetected ? '✓ Rosto detectado' : 'Posicione seu rosto'}
@@ -112,7 +112,7 @@ export function FaceCamera({
 
       {/* Camera inactive state */}
       {!isCameraActive && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-muted">
           <div className="text-muted-foreground text-sm">Câmera inativa</div>
         </div>
       )}
