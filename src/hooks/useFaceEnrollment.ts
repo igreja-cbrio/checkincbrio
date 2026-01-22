@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { averageDescriptors } from '@/lib/faceUtils';
 
 interface EnrollFaceParams {
   volunteerId: string;
   volunteerName: string;
   planningCenterId?: string;
   source: 'profile' | 'volunteer_qrcode';
-  faceDescriptor: Float32Array;
+  faceDescriptors: Float32Array[]; // Support multiple descriptors for multi-angle capture
   photoBlob?: Blob;
 }
 
@@ -19,16 +20,26 @@ export function useFaceEnrollment() {
       volunteerId,
       volunteerName,
       source,
-      faceDescriptor,
+      faceDescriptors,
       photoBlob,
     }: EnrollFaceParams) => {
+      // Validate we have at least one descriptor
+      if (faceDescriptors.length === 0) {
+        throw new Error('Nenhum descritor facial fornecido');
+      }
+
+      // Calculate average descriptor if multiple angles provided
+      const finalDescriptor = averageDescriptors(faceDescriptors);
+      
       // Convert Float32Array to regular number array for RPC
-      const descriptorArray = Array.from(faceDescriptor);
+      const descriptorArray = Array.from(finalDescriptor);
       
       // Validate descriptor length
       if (descriptorArray.length !== 128) {
         throw new Error(`Descriptor inválido: esperado 128 dimensões, recebido ${descriptorArray.length}`);
       }
+
+      console.log(`Processing ${faceDescriptors.length} descriptor(s) for enrollment`);
 
       // Upload photo if provided
       let photoUrl: string | null = null;
