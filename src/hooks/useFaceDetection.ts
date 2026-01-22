@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 
+export type FacingMode = 'user' | 'environment';
+
 interface UseFaceDetectionOptions {
   onFaceDetected?: (descriptor: Float32Array) => void;
   autoDetect?: boolean;
   detectionInterval?: number;
+  initialFacingMode?: FacingMode;
 }
 
 interface UseFaceDetectionReturn {
@@ -18,25 +21,29 @@ interface UseFaceDetectionReturn {
   detectFace: () => Promise<Float32Array | null>;
   isCameraActive: boolean;
   faceDetected: boolean;
+  facingMode: FacingMode;
+  switchCamera: () => Promise<boolean>;
 }
 
 // Camera start timeout in ms (important for iOS Safari)
 const CAMERA_START_TIMEOUT = 8000;
 
 export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFaceDetectionReturn {
-  const { onFaceDetected, autoDetect = false, detectionInterval = 500 } = options;
+  const { onFaceDetected, autoDetect = false, detectionInterval = 500, initialFacingMode = 'user' } = options;
   
   const [isLoading, setIsLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [facingMode, setFacingMode] = useState<FacingMode>(initialFacingMode);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const modelsLoadedRef = useRef(false);
+  const facingModeRef = useRef<FacingMode>(initialFacingMode);
 
   // Load face-api models
   useEffect(() => {
@@ -73,7 +80,9 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
     loadModels();
   }, []);
 
-  const startCamera = useCallback(async (): Promise<boolean> => {
+  const startCamera = useCallback(async (mode?: FacingMode): Promise<boolean> => {
+    const targetMode = mode || facingModeRef.current;
+    
     try {
       setError(null);
       
@@ -82,7 +91,7 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
         video: {
           width: { ideal: 1280, min: 640 },
           height: { ideal: 960, min: 480 },
-          facingMode: 'user',
+          facingMode: targetMode,
         },
         audio: false,
       });
@@ -153,7 +162,9 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
 
       if (videoReady) {
         setIsCameraActive(true);
-        console.log('Camera started successfully');
+        setFacingMode(targetMode);
+        facingModeRef.current = targetMode;
+        console.log('Camera started successfully with facingMode:', targetMode);
         return true;
       }
       
@@ -172,6 +183,11 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
         setError('Permissão de câmera negada. Toque em "Permitir" quando solicitado.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setError('Nenhuma câmera encontrada neste dispositivo.');
+      } else if (err.name === 'OverconstrainedError') {
+        // Camera doesn't support the requested facing mode, try the other one
+        const fallbackMode = targetMode === 'user' ? 'environment' : 'user';
+        console.log('Facing mode not supported, trying:', fallbackMode);
+        return startCamera(fallbackMode);
       } else if (err.message === 'Camera start timeout') {
         setError('Tempo esgotado ao iniciar câmera. Toque em "Iniciar" novamente.');
       } else {
@@ -200,6 +216,12 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
     setIsCameraActive(false);
     setFaceDetected(false);
   }, []);
+
+  const switchCamera = useCallback(async (): Promise<boolean> => {
+    const newMode: FacingMode = facingModeRef.current === 'user' ? 'environment' : 'user';
+    stopCamera();
+    return startCamera(newMode);
+  }, [stopCamera, startCamera]);
 
   const detectFace = useCallback(async (): Promise<Float32Array | null> => {
     if (!videoRef.current || !isReady || !isCameraActive) {
@@ -294,5 +316,7 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
     detectFace,
     isCameraActive,
     faceDetected,
+    facingMode,
+    switchCamera,
   };
 }

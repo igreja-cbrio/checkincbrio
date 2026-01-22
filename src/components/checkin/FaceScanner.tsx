@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FaceCamera } from '@/components/face/FaceCamera';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFaceMatch } from '@/hooks/useFaceEnrollment';
-import { Camera, Loader2, AlertCircle, CheckCircle2, UserX, Scan } from 'lucide-react';
+import { Camera, Loader2, AlertCircle, CheckCircle2, UserX, Scan, SwitchCamera } from 'lucide-react';
 
 interface FaceScannerProps {
   onCheckIn: (result: {
@@ -100,11 +100,16 @@ export function FaceScanner({ onCheckIn, isProcessing }: FaceScannerProps) {
     stopCamera,
     isCameraActive,
     faceDetected,
+    switchCamera,
   } = useFaceDetection({
     onFaceDetected: handleFaceDetected,
     autoDetect: isScanning,
     detectionInterval: 800,
   });
+
+  const handleSwitchCamera = useCallback(async () => {
+    await switchCamera();
+  }, [switchCamera]);
 
   const handleToggleScanner = useCallback(async () => {
     if (isCameraActive) {
@@ -145,12 +150,25 @@ export function FaceScanner({ onCheckIn, isProcessing }: FaceScannerProps) {
 
         {/* Camera view */}
         {isReady && !modelsLoading && (
-          <FaceCamera
-            videoRef={videoRef}
-            canvasRef={canvasRef}
-            isCameraActive={isCameraActive}
-            faceDetected={faceDetected}
-          />
+          <div className="relative">
+            <FaceCamera
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              isCameraActive={isCameraActive}
+              faceDetected={faceDetected}
+            />
+            {/* Switch camera button */}
+            {isCameraActive && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute top-2 right-2 bg-background/80 backdrop-blur"
+                onClick={handleSwitchCamera}
+              >
+                <SwitchCamera className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Scan result */}

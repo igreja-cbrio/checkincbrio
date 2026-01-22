@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import * as faceapi from '@vladmandic/face-api';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FaceCamera } from './FaceCamera';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFaceEnrollment } from '@/hooks/useFaceEnrollment';
-import { Camera, Loader2, AlertCircle, CheckCircle2, User } from 'lucide-react';
+import { Camera, Loader2, AlertCircle, CheckCircle2, User, SwitchCamera, ImagePlus } from 'lucide-react';
 
 interface Volunteer {
   id: string;
@@ -36,6 +37,9 @@ export function FaceEnrollmentDialog({
   const [capturedDescriptor, setCapturedDescriptor] = useState<Float32Array | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<Blob | null>(null);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     isLoading: modelsLoading,
@@ -48,6 +52,8 @@ export function FaceEnrollmentDialog({
     detectFace,
     isCameraActive,
     faceDetected,
+    facingMode,
+    switchCamera,
   } = useFaceDetection({ autoDetect: true, detectionInterval: 300 });
   const queryClient = useQueryClient();
   const enrollmentMutation = useFaceEnrollment();
@@ -56,8 +62,13 @@ export function FaceEnrollmentDialog({
     setCapturedDescriptor(null);
     setCapturedPhoto(null);
     setCapturedPhotoUrl(null);
+    setImageError(null);
     await startCamera();
   }, [startCamera]);
+
+  const handleSwitchCamera = useCallback(async () => {
+    await switchCamera();
+  }, [switchCamera]);
 
   const handleCapture = useCallback(async () => {
     const descriptor = await detectFace();
@@ -70,9 +81,11 @@ export function FaceEnrollmentDialog({
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // Flip horizontally to match what user sees
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
+        // Flip horizontally only for front camera
+        if (facingMode === 'user') {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
         ctx.drawImage(videoRef.current, 0, 0);
         
         canvas.toBlob((blob) => {
@@ -85,11 +98,65 @@ export function FaceEnrollmentDialog({
       
       stopCamera();
     }
-  }, [detectFace, stopCamera, videoRef]);
+  }, [detectFace, stopCamera, videoRef, facingMode]);
+
+  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingImage(true);
+    setImageError(null);
+    stopCamera();
+
+    try {
+      // Create an image element to load the file
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Falha ao carregar a imagem'));
+        img.src = objectUrl;
+      });
+
+      // Detect face in the image
+      const detection = await faceapi
+        .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setImageError('Nenhum rosto detectado na imagem. Por favor, escolha outra foto.');
+        URL.revokeObjectURL(objectUrl);
+        setIsProcessingImage(false);
+        return;
+      }
+
+      // Store the descriptor
+      setCapturedDescriptor(detection.descriptor);
+      
+      // Convert the file to a blob for upload
+      const arrayBuffer = await file.arrayBuffer();
+      const blob = new Blob([arrayBuffer], { type: file.type });
+      setCapturedPhoto(blob);
+      setCapturedPhotoUrl(objectUrl);
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      setImageError('Erro ao processar a imagem. Tente novamente.');
+    } finally {
+      setIsProcessingImage(false);
+      // Reset the input so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [stopCamera]);
 
   const handleRetry = useCallback(() => {
     setCapturedDescriptor(null);
     setCapturedPhoto(null);
+    setImageError(null);
     if (capturedPhotoUrl) {
       URL.revokeObjectURL(capturedPhotoUrl);
       setCapturedPhotoUrl(null);
@@ -119,6 +186,7 @@ export function FaceEnrollmentDialog({
     stopCamera();
     setCapturedDescriptor(null);
     setCapturedPhoto(null);
+    setImageError(null);
     if (capturedPhotoUrl) {
       URL.revokeObjectURL(capturedPhotoUrl);
       setCapturedPhotoUrl(null);
@@ -139,6 +207,15 @@ export function FaceEnrollmentDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Hidden file input */}
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         <div className="space-y-4">
           {/* Loading models */}
           {modelsLoading && (
@@ -148,16 +225,24 @@ export function FaceEnrollmentDialog({
             </div>
           )}
 
-          {/* Error state */}
-          {cameraError && (
+          {/* Processing image from gallery */}
+          {isProcessingImage && (
+            <div className="flex flex-col items-center justify-center py-8 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Processando imagem...</p>
+            </div>
+          )}
+
+          {/* Error states */}
+          {(cameraError || imageError) && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{cameraError}</AlertDescription>
+              <AlertDescription>{cameraError || imageError}</AlertDescription>
             </Alert>
           )}
 
           {/* Camera view or captured photo */}
-          {isReady && !modelsLoading && (
+          {isReady && !modelsLoading && !isProcessingImage && (
             <>
               {capturedPhotoUrl ? (
                 <div className="relative rounded-lg overflow-hidden aspect-[3/4] bg-muted">
@@ -174,30 +259,55 @@ export function FaceEnrollmentDialog({
                   </div>
                 </div>
               ) : (
-                <FaceCamera
-                  videoRef={videoRef}
-                  canvasRef={canvasRef}
-                  isCameraActive={isCameraActive}
-                  faceDetected={faceDetected}
-                />
+                <div className="relative">
+                  <FaceCamera
+                    videoRef={videoRef}
+                    canvasRef={canvasRef}
+                    isCameraActive={isCameraActive}
+                    faceDetected={faceDetected}
+                  />
+                  {/* Switch camera button */}
+                  {isCameraActive && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="absolute top-2 right-2 bg-background/80 backdrop-blur"
+                      onClick={handleSwitchCamera}
+                    >
+                      <SwitchCamera className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               )}
             </>
           )}
 
           {/* Action buttons */}
-          <div className="flex gap-2">
-            {!isCameraActive && !capturedDescriptor && isReady && (
-              <Button onClick={handleStartCamera} className="flex-1">
-                <Camera className="h-4 w-4 mr-2" />
-                Iniciar Câmera
-              </Button>
+          <div className="flex flex-col gap-2">
+            {!isCameraActive && !capturedDescriptor && isReady && !isProcessingImage && (
+              <>
+                <div className="flex gap-2">
+                  <Button onClick={handleStartCamera} className="flex-1">
+                    <Camera className="h-4 w-4 mr-2" />
+                    Usar Câmera
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1"
+                  >
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    Importar Foto
+                  </Button>
+                </div>
+              </>
             )}
 
             {isCameraActive && !capturedDescriptor && (
               <Button
                 onClick={handleCapture}
                 disabled={!faceDetected}
-                className="flex-1"
+                className="w-full"
               >
                 <Camera className="h-4 w-4 mr-2" />
                 Capturar Foto
@@ -205,7 +315,7 @@ export function FaceEnrollmentDialog({
             )}
 
             {capturedDescriptor && (
-              <>
+              <div className="flex gap-2">
                 <Button variant="outline" onClick={handleRetry} className="flex-1">
                   Tentar Novamente
                 </Button>
@@ -221,7 +331,7 @@ export function FaceEnrollmentDialog({
                   )}
                   Salvar
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </div>
