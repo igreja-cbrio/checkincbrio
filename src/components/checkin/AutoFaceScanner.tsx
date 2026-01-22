@@ -1,9 +1,10 @@
 import { useCallback, useRef, useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { FaceCamera } from '@/components/face/FaceCamera';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFaceMatch } from '@/hooks/useFaceEnrollment';
-import { Loader2, AlertCircle, UserX, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, AlertCircle, UserX, Wifi, WifiOff, Camera } from 'lucide-react';
 
 export interface FaceMatchResult {
   volunteerId: string | null;
@@ -26,7 +27,7 @@ export function AutoFaceScanner({
   isProcessing,
   cooldownMs = 5000,
 }: AutoFaceScannerProps) {
-  const [scanStatus, setScanStatus] = useState<'scanning' | 'processing' | 'cooldown' | 'not_found'>('scanning');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'starting' | 'scanning' | 'processing' | 'cooldown' | 'not_found'>('idle');
   const lastScanTimeRef = useRef<number>(0);
   const cooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const notFoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -94,12 +95,35 @@ export function AutoFaceScanner({
     detectionInterval: 500,
   });
 
-  // Auto-start camera when ready
-  useEffect(() => {
-    if (isReady && !isCameraActive && !modelsLoading) {
-      startCamera();
+  // Handle camera start with user gesture (required for iOS Safari)
+  const handleStartCamera = useCallback(async () => {
+    setScanStatus('starting');
+    const success = await startCamera();
+    if (success) {
+      setScanStatus('scanning');
+    } else {
+      setScanStatus('idle');
     }
-    
+  }, [startCamera]);
+
+  // Handle visibility change (iOS kills camera when app goes to background)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isCameraActive) {
+        // When going to background, stop camera
+        stopCamera();
+        setScanStatus('idle');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isCameraActive, stopCamera]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
     return () => {
       stopCamera();
       if (cooldownTimeoutRef.current) {
@@ -109,7 +133,7 @@ export function AutoFaceScanner({
         clearTimeout(notFoundTimeoutRef.current);
       }
     };
-  }, [isReady, isCameraActive, modelsLoading, startCamera, stopCamera]);
+  }, [stopCamera]);
 
   if (modelsLoading) {
     return (
@@ -129,6 +153,10 @@ export function AutoFaceScanner({
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{cameraError}</AlertDescription>
         </Alert>
+        <Button onClick={handleStartCamera} className="mt-4">
+          <Camera className="h-4 w-4 mr-2" />
+          Tentar Novamente
+        </Button>
       </div>
     );
   }
@@ -145,40 +173,71 @@ export function AutoFaceScanner({
           className="h-full"
         />
 
+        {/* Start camera button overlay - for iOS Safari user gesture requirement */}
+        {scanStatus === 'idle' && isReady && !isCameraActive && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20">
+            <Camera className="h-16 w-16 text-muted-foreground mb-4" />
+            <p className="text-lg text-muted-foreground mb-6">Toque para iniciar a câmera</p>
+            <Button size="lg" onClick={handleStartCamera} className="text-lg px-8 py-6">
+              <Camera className="h-5 w-5 mr-2" />
+              Iniciar Câmera
+            </Button>
+          </div>
+        )}
+
+        {/* Starting camera overlay */}
+        {scanStatus === 'starting' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-lg text-muted-foreground">Iniciando câmera...</p>
+            <p className="text-sm text-muted-foreground mt-2">Permita o acesso quando solicitado</p>
+          </div>
+        )}
+
         {/* Status indicator */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-          {scanStatus === 'scanning' && (
-            <div className="flex items-center gap-2 rounded-full bg-background/80 backdrop-blur px-4 py-2 text-sm">
-              <Wifi className="h-4 w-4 text-primary animate-pulse" />
-              <span>Aguardando rosto...</span>
-            </div>
-          )}
-          {scanStatus === 'processing' && (
-            <div className="flex items-center gap-2 rounded-full bg-primary/90 text-primary-foreground px-4 py-2 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Identificando...</span>
-            </div>
-          )}
-          {scanStatus === 'cooldown' && (
-            <div className="flex items-center gap-2 rounded-full bg-background/80 backdrop-blur px-4 py-2 text-sm">
-              <WifiOff className="h-4 w-4 text-muted-foreground" />
-              <span>Aguarde...</span>
-            </div>
-          )}
-          {scanStatus === 'not_found' && (
-            <div className="flex items-center gap-2 rounded-full bg-destructive/90 text-destructive-foreground px-4 py-2 text-sm">
-              <UserX className="h-4 w-4" />
-              <span>Rosto não cadastrado</span>
-            </div>
-          )}
-        </div>
+        {isCameraActive && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+            {scanStatus === 'scanning' && (
+              <div className="flex items-center gap-2 rounded-full bg-background/80 backdrop-blur px-4 py-2 text-sm">
+                <Wifi className="h-4 w-4 text-primary animate-pulse" />
+                <span>Aguardando rosto...</span>
+              </div>
+            )}
+            {scanStatus === 'processing' && (
+              <div className="flex items-center gap-2 rounded-full bg-primary/90 text-primary-foreground px-4 py-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Identificando...</span>
+              </div>
+            )}
+            {scanStatus === 'cooldown' && (
+              <div className="flex items-center gap-2 rounded-full bg-background/80 backdrop-blur px-4 py-2 text-sm">
+                <WifiOff className="h-4 w-4 text-muted-foreground" />
+                <span>Aguarde...</span>
+              </div>
+            )}
+            {scanStatus === 'not_found' && (
+              <div className="flex items-center gap-2 rounded-full bg-destructive/90 text-destructive-foreground px-4 py-2 text-sm">
+                <UserX className="h-4 w-4" />
+                <span>Rosto não cadastrado</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
       <div className="p-4 text-center bg-muted/50">
-        <p className="text-lg font-medium">Olhe para a câmera para fazer check-in</p>
+        <p className="text-lg font-medium">
+          {isCameraActive 
+            ? 'Olhe para a câmera para fazer check-in' 
+            : 'Toque em "Iniciar Câmera" para começar'
+          }
+        </p>
         <p className="text-sm text-muted-foreground mt-1">
-          Posicione seu rosto dentro do guia oval
+          {isCameraActive 
+            ? 'Posicione seu rosto dentro do guia oval'
+            : 'A câmera será usada para reconhecimento facial'
+          }
         </p>
       </div>
     </div>

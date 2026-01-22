@@ -256,6 +256,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_profile_face_descriptor: {
+        Args: { descriptor: number[]; photo_url?: string; profile_id: string }
+        Returns: {
+          id: string
+          saved: boolean
+          updated_at: string
+        }[]
+      }
+      save_volunteer_qrcode_face_descriptor: {
+        Args: { descriptor: number[]; photo_url?: string; qrcode_id: string }
+        Returns: {
+          id: string
+          saved: boolean
+          updated_at: string
+          volunteer_name: string
+        }[]
+      }
     }
     Enums: {
       user_role: "volunteer" | "leader" | "admin"
