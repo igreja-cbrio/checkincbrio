@@ -11,9 +11,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FaceCamera } from './FaceCamera';
+import { MultiAngleCapture, CapturedAngle, CAPTURE_ANGLES } from './MultiAngleCapture';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFaceEnrollment } from '@/hooks/useFaceEnrollment';
-import { Camera, Loader2, AlertCircle, CheckCircle2, User, SwitchCamera, ImagePlus } from 'lucide-react';
+import { Camera, Loader2, AlertCircle, CheckCircle2, User, SwitchCamera, ImagePlus, Zap } from 'lucide-react';
 
 interface Volunteer {
   id: string;
@@ -29,14 +30,25 @@ interface FaceEnrollmentDialogProps {
   volunteer: Volunteer | null;
 }
 
+type CaptureMode = 'select' | 'quick' | 'multi';
+
 export function FaceEnrollmentDialog({
   open,
   onOpenChange,
   volunteer,
 }: FaceEnrollmentDialogProps) {
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('select');
+  
+  // Quick capture state
   const [capturedDescriptor, setCapturedDescriptor] = useState<Float32Array | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<Blob | null>(null);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  
+  // Multi-angle capture state
+  const [capturedAngles, setCapturedAngles] = useState<CapturedAngle[]>([]);
+  const [currentAngleIndex, setCurrentAngleIndex] = useState(0);
+  
+  // Image import state
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,30 +70,46 @@ export function FaceEnrollmentDialog({
   const queryClient = useQueryClient();
   const enrollmentMutation = useFaceEnrollment();
 
-  const handleStartCamera = useCallback(async () => {
+  const resetState = useCallback(() => {
+    setCaptureMode('select');
     setCapturedDescriptor(null);
     setCapturedPhoto(null);
-    setCapturedPhotoUrl(null);
+    setCapturedAngles([]);
+    setCurrentAngleIndex(0);
     setImageError(null);
+    if (capturedPhotoUrl) {
+      URL.revokeObjectURL(capturedPhotoUrl);
+      setCapturedPhotoUrl(null);
+    }
+  }, [capturedPhotoUrl]);
+
+  const handleStartQuickCapture = useCallback(async () => {
+    resetState();
+    setCaptureMode('quick');
     await startCamera();
-  }, [startCamera]);
+  }, [resetState, startCamera]);
+
+  const handleStartMultiCapture = useCallback(async () => {
+    resetState();
+    setCaptureMode('multi');
+    await startCamera();
+  }, [resetState, startCamera]);
 
   const handleSwitchCamera = useCallback(async () => {
     await switchCamera();
   }, [switchCamera]);
 
-  const handleCapture = useCallback(async () => {
+  // Quick capture handler
+  const handleQuickCapture = useCallback(async () => {
     const descriptor = await detectFace();
     if (descriptor && videoRef.current) {
       setCapturedDescriptor(descriptor);
       
-      // Capture photo from video
       const canvas = document.createElement('canvas');
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // Flip horizontally only for front camera
         if (facingMode === 'user') {
           ctx.translate(canvas.width, 0);
           ctx.scale(-1, 1);
@@ -100,6 +128,67 @@ export function FaceEnrollmentDialog({
     }
   }, [detectFace, stopCamera, videoRef, facingMode]);
 
+  // Multi-angle capture handler
+  const handleMultiCapture = useCallback(async () => {
+    const descriptor = await detectFace();
+    if (descriptor && videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      
+      if (ctx) {
+        if (facingMode === 'user') {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(videoRef.current, 0, 0);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const photoUrl = URL.createObjectURL(blob);
+            const angle = CAPTURE_ANGLES[currentAngleIndex];
+            
+            const newCapturedAngle: CapturedAngle = {
+              label: angle.label,
+              instruction: angle.instruction,
+              descriptor,
+              photoUrl,
+              photoBlob: blob,
+            };
+            
+            setCapturedAngles(prev => {
+              const updated = [...prev];
+              updated[currentAngleIndex] = newCapturedAngle;
+              return updated;
+            });
+            
+            // Move to next angle or complete
+            if (currentAngleIndex < CAPTURE_ANGLES.length - 1) {
+              setCurrentAngleIndex(currentAngleIndex + 1);
+            } else {
+              stopCamera();
+            }
+          }
+        }, 'image/jpeg', 0.9);
+      }
+    }
+  }, [detectFace, videoRef, facingMode, currentAngleIndex, stopCamera]);
+
+  const handleRecapture = useCallback(async (index: number) => {
+    setCurrentAngleIndex(index);
+    // Clean up the old photo URL
+    if (capturedAngles[index]) {
+      URL.revokeObjectURL(capturedAngles[index].photoUrl);
+    }
+    setCapturedAngles(prev => {
+      const updated = [...prev];
+      delete updated[index];
+      return updated.filter(Boolean);
+    });
+    await startCamera();
+  }, [capturedAngles, startCamera]);
+
   const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -107,9 +196,9 @@ export function FaceEnrollmentDialog({
     setIsProcessingImage(true);
     setImageError(null);
     stopCamera();
+    setCaptureMode('quick');
 
     try {
-      // Create an image element to load the file
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
       
@@ -119,7 +208,6 @@ export function FaceEnrollmentDialog({
         img.src = objectUrl;
       });
 
-      // Detect face in the image
       const detection = await faceapi
         .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
         .withFaceLandmarks()
@@ -132,10 +220,8 @@ export function FaceEnrollmentDialog({
         return;
       }
 
-      // Store the descriptor
       setCapturedDescriptor(detection.descriptor);
       
-      // Convert the file to a blob for upload
       const arrayBuffer = await file.arrayBuffer();
       const blob = new Blob([arrayBuffer], { type: file.type });
       setCapturedPhoto(blob);
@@ -146,7 +232,6 @@ export function FaceEnrollmentDialog({
       setImageError('Erro ao processar a imagem. Tente novamente.');
     } finally {
       setIsProcessingImage(false);
-      // Reset the input so the same file can be selected again
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -154,45 +239,59 @@ export function FaceEnrollmentDialog({
   }, [stopCamera]);
 
   const handleRetry = useCallback(() => {
-    setCapturedDescriptor(null);
-    setCapturedPhoto(null);
-    setImageError(null);
-    if (capturedPhotoUrl) {
-      URL.revokeObjectURL(capturedPhotoUrl);
-      setCapturedPhotoUrl(null);
+    if (captureMode === 'quick') {
+      setCapturedDescriptor(null);
+      setCapturedPhoto(null);
+      setImageError(null);
+      if (capturedPhotoUrl) {
+        URL.revokeObjectURL(capturedPhotoUrl);
+        setCapturedPhotoUrl(null);
+      }
+      startCamera();
+    } else {
+      resetState();
     }
-    startCamera();
-  }, [startCamera, capturedPhotoUrl]);
+  }, [captureMode, capturedPhotoUrl, resetState, startCamera]);
 
   const handleSave = useCallback(async () => {
-    if (!volunteer || !capturedDescriptor) return;
+    if (!volunteer) return;
+
+    let descriptors: Float32Array[] = [];
+    let photoBlob: Blob | undefined;
+
+    if (captureMode === 'quick' && capturedDescriptor) {
+      descriptors = [capturedDescriptor];
+      photoBlob = capturedPhoto || undefined;
+    } else if (captureMode === 'multi' && capturedAngles.length === CAPTURE_ANGLES.length) {
+      descriptors = capturedAngles.map(a => a.descriptor);
+      // Use frontal photo as avatar
+      photoBlob = capturedAngles[0]?.photoBlob;
+    }
+
+    if (descriptors.length === 0) return;
 
     await enrollmentMutation.mutateAsync({
       volunteerId: volunteer.id,
       volunteerName: volunteer.full_name,
       planningCenterId: volunteer.planning_center_id || undefined,
       source: volunteer.source,
-      faceDescriptor: capturedDescriptor,
-      photoBlob: capturedPhoto || undefined,
+      faceDescriptors: descriptors,
+      photoBlob,
     });
 
-    // Invalidate cache so the "Facial" badge appears immediately
     queryClient.invalidateQueries({ queryKey: ['volunteers-qrcodes'] });
-
     onOpenChange(false);
-  }, [volunteer, capturedDescriptor, capturedPhoto, enrollmentMutation, onOpenChange, queryClient]);
+  }, [volunteer, captureMode, capturedDescriptor, capturedPhoto, capturedAngles, enrollmentMutation, onOpenChange, queryClient]);
 
   const handleClose = useCallback(() => {
     stopCamera();
-    setCapturedDescriptor(null);
-    setCapturedPhoto(null);
-    setImageError(null);
-    if (capturedPhotoUrl) {
-      URL.revokeObjectURL(capturedPhotoUrl);
-      setCapturedPhotoUrl(null);
-    }
+    resetState();
     onOpenChange(false);
-  }, [stopCamera, onOpenChange, capturedPhotoUrl]);
+  }, [stopCamera, resetState, onOpenChange]);
+
+  const canSave = captureMode === 'quick' 
+    ? capturedDescriptor !== null 
+    : capturedAngles.length === CAPTURE_ANGLES.length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -225,7 +324,7 @@ export function FaceEnrollmentDialog({
             </div>
           )}
 
-          {/* Processing image from gallery */}
+          {/* Processing image */}
           {isProcessingImage && (
             <div className="flex flex-col items-center justify-center py-8 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -241,8 +340,42 @@ export function FaceEnrollmentDialog({
             </Alert>
           )}
 
-          {/* Camera view or captured photo */}
-          {isReady && !modelsLoading && !isProcessingImage && (
+          {/* Mode selection */}
+          {captureMode === 'select' && isReady && !modelsLoading && !isProcessingImage && (
+            <div className="space-y-3">
+              <Button onClick={handleStartMultiCapture} className="w-full h-auto py-4 flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Camera className="h-5 w-5" />
+                  Captura Completa (3 ângulos)
+                </div>
+                <span className="text-xs font-normal opacity-80">
+                  Maior precisão no reconhecimento
+                </span>
+              </Button>
+              
+              <Button variant="outline" onClick={handleStartQuickCapture} className="w-full h-auto py-3 flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Captura Rápida (1 foto)
+                </div>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Mais ágil, menos preciso
+                </span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
+                <ImagePlus className="h-4 w-4 mr-2" />
+                Importar Foto
+              </Button>
+            </div>
+          )}
+
+          {/* Quick capture view */}
+          {captureMode === 'quick' && isReady && !modelsLoading && !isProcessingImage && (
             <>
               {capturedPhotoUrl ? (
                 <div className="relative rounded-lg overflow-hidden aspect-[3/4] bg-muted">
@@ -266,7 +399,6 @@ export function FaceEnrollmentDialog({
                     isCameraActive={isCameraActive}
                     faceDetected={faceDetected}
                   />
-                  {/* Switch camera button */}
                   {isCameraActive && (
                     <Button
                       variant="outline"
@@ -279,61 +411,56 @@ export function FaceEnrollmentDialog({
                   )}
                 </div>
               )}
+
+              {/* Quick capture buttons */}
+              {isCameraActive && !capturedDescriptor && (
+                <Button
+                  onClick={handleQuickCapture}
+                  disabled={!faceDetected}
+                  className="w-full"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Capturar Foto
+                </Button>
+              )}
             </>
           )}
 
-          {/* Action buttons */}
-          <div className="flex flex-col gap-2">
-            {!isCameraActive && !capturedDescriptor && isReady && !isProcessingImage && (
-              <>
-                <div className="flex gap-2">
-                  <Button onClick={handleStartCamera} className="flex-1">
-                    <Camera className="h-4 w-4 mr-2" />
-                    Usar Câmera
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1"
-                  >
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    Importar Foto
-                  </Button>
-                </div>
-              </>
-            )}
+          {/* Multi-angle capture view */}
+          {captureMode === 'multi' && isReady && !modelsLoading && !isProcessingImage && (
+            <MultiAngleCapture
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              isCameraActive={isCameraActive}
+              faceDetected={faceDetected}
+              currentAngleIndex={currentAngleIndex}
+              capturedAngles={capturedAngles}
+              onCapture={handleMultiCapture}
+              onRecapture={handleRecapture}
+              onSwitchCamera={handleSwitchCamera}
+            />
+          )}
 
-            {isCameraActive && !capturedDescriptor && (
-              <Button
-                onClick={handleCapture}
-                disabled={!faceDetected}
-                className="w-full"
-              >
-                <Camera className="h-4 w-4 mr-2" />
-                Capturar Foto
+          {/* Save/Retry buttons */}
+          {canSave && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleRetry} className="flex-1">
+                Tentar Novamente
               </Button>
-            )}
-
-            {capturedDescriptor && (
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={handleRetry} className="flex-1">
-                  Tentar Novamente
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={enrollmentMutation.isPending}
-                  className="flex-1"
-                >
-                  {enrollmentMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                  )}
-                  Salvar
-                </Button>
-              </div>
-            )}
-          </div>
+              <Button
+                onClick={handleSave}
+                disabled={enrollmentMutation.isPending}
+                className="flex-1"
+              >
+                {enrollmentMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
+                Salvar
+              </Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
