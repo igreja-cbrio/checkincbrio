@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrScanner } from '@/components/checkin/QrScanner';
+import { FaceScanner } from '@/components/checkin/FaceScanner';
 import { ManualCheckin, UnscheduledCheckInParams } from '@/components/checkin/ManualCheckin';
 import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan } from 'lucide-react';
 
 export default function CheckinPage() {
   const { isLeader } = useAuth();
@@ -195,8 +196,12 @@ export default function CheckinPage() {
       {/* Check-in Methods */}
       {selectedServiceId && (
         <Tabs defaultValue="qr" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="qr">QR Code</TabsTrigger>
+            <TabsTrigger value="facial" className="flex items-center gap-1">
+              <Scan className="h-3.5 w-3.5" />
+              Facial
+            </TabsTrigger>
             <TabsTrigger value="manual">Manual</TabsTrigger>
           </TabsList>
           
@@ -204,6 +209,25 @@ export default function CheckinPage() {
             <QrScanner 
               onScan={handleQrScan} 
               isProcessing={qrCodeMutation.isPending || checkInMutation.isPending}
+            />
+          </TabsContent>
+
+          <TabsContent value="facial" className="mt-3">
+            <FaceScanner
+              onCheckIn={async (result) => {
+                try {
+                  await checkInMutation.mutateAsync({
+                    volunteerId: result.volunteerId || undefined,
+                    serviceId: selectedServiceId,
+                    method: 'facial',
+                    isUnscheduled: true,
+                  });
+                  toast.success(`Check-in facial: ${result.volunteerName}`);
+                } catch (error) {
+                  toast.error('Erro ao fazer check-in');
+                }
+              }}
+              isProcessing={checkInMutation.isPending}
             />
           </TabsContent>
           

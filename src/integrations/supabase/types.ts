@@ -74,6 +74,7 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           email: string
+          face_descriptor: string | null
           full_name: string
           id: string
           planning_center_id: string | null
@@ -84,6 +85,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email: string
+          face_descriptor?: string | null
           full_name: string
           id: string
           planning_center_id?: string | null
@@ -94,6 +96,7 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string
           email?: string
+          face_descriptor?: string | null
           full_name?: string
           id?: string
           planning_center_id?: string | null
@@ -201,6 +204,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string | null
+          face_descriptor: string | null
           id: string
           planning_center_person_id: string
           qr_code: string
@@ -210,6 +214,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
+          face_descriptor?: string | null
           id?: string
           planning_center_person_id: string
           qr_code?: string
@@ -219,6 +224,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string | null
+          face_descriptor?: string | null
           id?: string
           planning_center_person_id?: string
           qr_code?: string
@@ -232,6 +238,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_face_match: {
+        Args: { match_threshold?: number; query_descriptor: string }
+        Returns: {
+          distance: number
+          planning_center_id: string
+          source: string
+          volunteer_id: string
+          volunteer_name: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["user_role"]

@@ -72,7 +72,7 @@ interface CheckInParams {
   scheduleId?: string;
   volunteerId?: string;
   serviceId?: string;
-  method: 'qr_code' | 'manual';
+  method: 'qr_code' | 'manual' | 'facial';
   isUnscheduled?: boolean;
 }
 

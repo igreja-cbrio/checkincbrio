@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QRCodeSVG } from 'qrcode.react';
-import { Search, Eye, History, QrCode, UserPlus } from 'lucide-react';
+import { Search, Eye, History, QrCode, UserPlus, Scan } from 'lucide-react';
 import { QrCodeModal } from '@/components/qrcodes/QrCodeModal';
 import { QrCodePdfExport } from '@/components/qrcodes/QrCodePdfExport';
 import { PlanningCenterQrSearch } from '@/components/qrcodes/PlanningCenterQrSearch';
+import { FaceEnrollmentDialog } from '@/components/face/FaceEnrollmentDialog';
 
 export default function QrCodeManagementPage() {
   const { isLeader } = useAuth();
@@ -19,6 +20,8 @@ export default function QrCodeManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedVolunteer, setSelectedVolunteer] = useState<VolunteerWithQrCode | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [faceEnrollmentOpen, setFaceEnrollmentOpen] = useState(false);
+  const [faceEnrollmentVolunteer, setFaceEnrollmentVolunteer] = useState<VolunteerWithQrCode | null>(null);
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
@@ -39,6 +42,11 @@ export default function QrCodeManagementPage() {
     // Open the QR code modal for the newly created volunteer
     setSelectedVolunteer(volunteer);
     setModalOpen(true);
+  };
+
+  const handleEnrollFace = (volunteer: VolunteerWithQrCode) => {
+    setFaceEnrollmentVolunteer(volunteer);
+    setFaceEnrollmentOpen(true);
   };
 
   return (
@@ -137,6 +145,14 @@ export default function QrCodeManagementPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => handleEnrollFace(volunteer)}
+                        title="Cadastrar Rosto"
+                      >
+                        <Scan className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleViewQrCode(volunteer)}
                       >
                         <Eye className="h-4 w-4" />
@@ -164,6 +180,18 @@ export default function QrCodeManagementPage() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         volunteer={selectedVolunteer}
+      />
+
+      <FaceEnrollmentDialog
+        open={faceEnrollmentOpen}
+        onOpenChange={setFaceEnrollmentOpen}
+        volunteer={faceEnrollmentVolunteer ? {
+          id: faceEnrollmentVolunteer.id,
+          full_name: faceEnrollmentVolunteer.full_name,
+          planning_center_id: faceEnrollmentVolunteer.planning_center_id,
+          source: faceEnrollmentVolunteer.source,
+          avatar_url: faceEnrollmentVolunteer.avatar_url,
+        } : null}
       />
     </div>
   );
