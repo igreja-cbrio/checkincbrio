@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { QrScanner } from '@/components/checkin/QrScanner';
 import { FaceScanner } from '@/components/checkin/FaceScanner';
@@ -16,9 +16,10 @@ import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor } from 'lucide-react';
 
 export default function CheckinPage() {
+  const navigate = useNavigate();
   const { isLeader } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [unscheduledDialog, setUnscheduledDialog] = useState<{
@@ -193,6 +194,18 @@ export default function CheckinPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Kiosk Mode Button */}
+      {selectedServiceId && (
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => navigate('/checkin/kiosk')}
+        >
+          <Monitor className="h-4 w-4 mr-2" />
+          Abrir Modo Totem
+        </Button>
+      )}
 
       {/* Check-in Methods */}
       {selectedServiceId && (

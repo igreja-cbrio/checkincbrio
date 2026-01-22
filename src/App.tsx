@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import CheckinPage from "./pages/CheckinPage";
+import FaceCheckinKioskPage from "./pages/FaceCheckinKioskPage";
 import MyQrCodePage from "./pages/MyQrCodePage";
 import SchedulesPage from "./pages/SchedulesPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -30,6 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/planning-center/callback" element={<PlanningCenterCallback />} />
+            <Route path="/checkin/kiosk" element={<FaceCheckinKioskPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
