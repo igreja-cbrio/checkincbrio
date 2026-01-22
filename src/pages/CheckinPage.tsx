@@ -40,7 +40,8 @@ export default function CheckinPage() {
   const handleSync = async () => {
     try {
       const result = await syncMutation.mutateAsync();
-      toast.success(`Sincronizado! ${result.services} cultos, ${result.newSchedules} novas escalas.`);
+      const avatarMsg = result.avatarsImported ? `, ${result.avatarsImported} fotos` : '';
+      toast.success(`Sincronizado! ${result.services} cultos, ${result.newSchedules} escalas${avatarMsg}.`);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao sincronizar');
     }

@@ -42,6 +42,7 @@ export function PlanningCenterQrSearch({ onVolunteerCreated }: PlanningCenterQrS
         qr_code: volunteer.qr_code,
         avatar_url: volunteer.avatar_url,
         source: 'volunteer_qrcode',
+        has_face: false,
       };
       
       onVolunteerCreated(transformedVolunteer);

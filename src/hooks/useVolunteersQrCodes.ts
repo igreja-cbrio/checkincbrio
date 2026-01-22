@@ -10,6 +10,7 @@ export interface VolunteerWithQrCode {
   qr_code: string | null;
   avatar_url: string | null;
   source: 'profile' | 'volunteer_qrcode';
+  has_face: boolean;
 }
 
 interface VolunteerQrCodeRow {
@@ -18,6 +19,17 @@ interface VolunteerQrCodeRow {
   volunteer_name: string;
   qr_code: string;
   avatar_url: string | null;
+  face_descriptor: unknown | null;
+}
+
+interface ProfileRow {
+  id: string;
+  full_name: string;
+  email: string;
+  planning_center_id: string | null;
+  qr_code: string | null;
+  avatar_url: string | null;
+  face_descriptor: unknown | null;
 }
 
 export function useVolunteersQrCodes() {
@@ -49,7 +61,7 @@ export function useVolunteersQrCodes() {
       // Get profiles (users with accounts)
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, email, planning_center_id, qr_code, avatar_url');
+        .select('id, full_name, email, planning_center_id, qr_code, avatar_url, face_descriptor');
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
@@ -59,7 +71,7 @@ export function useVolunteersQrCodes() {
       // Get volunteer QR codes (PC volunteers without accounts)
       const { data: volunteerQrCodes, error: qrError } = await supabase
         .from('volunteer_qrcodes')
-        .select('id, planning_center_person_id, volunteer_name, qr_code, avatar_url');
+        .select('id, planning_center_person_id, volunteer_name, qr_code, avatar_url, face_descriptor');
 
       if (qrError) {
         console.error('Error fetching volunteer QR codes:', qrError);
@@ -70,7 +82,7 @@ export function useVolunteersQrCodes() {
       const combinedMap = new Map<string, VolunteerWithQrCode>();
       
       // Add profiles first (they have priority as they have accounts)
-      for (const profile of profiles || []) {
+      for (const profile of (profiles as ProfileRow[]) || []) {
         const key = profile.planning_center_id || `profile_${profile.id}`;
         combinedMap.set(key, {
           id: profile.id,
@@ -80,6 +92,7 @@ export function useVolunteersQrCodes() {
           qr_code: profile.qr_code,
           avatar_url: profile.avatar_url,
           source: 'profile',
+          has_face: profile.face_descriptor != null,
         });
       }
 
@@ -99,6 +112,7 @@ export function useVolunteersQrCodes() {
           qr_code: volunteer.qr_code,
           avatar_url: volunteer.avatar_url,
           source: 'volunteer_qrcode',
+          has_face: volunteer.face_descriptor != null,
         });
       }
 

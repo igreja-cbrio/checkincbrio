@@ -9,6 +9,7 @@ const corsHeaders = {
 interface VolunteerQrCode {
   planning_center_person_id: string;
   volunteer_name: string;
+  avatar_url: string | null;
 }
 
 serve(async (req) => {
@@ -161,9 +162,9 @@ serve(async (req) => {
         typeServices++;
         console.log(`Synced service: ${serviceName} on ${serviceDate}`);
 
-        // Fetch team members for this plan
+        // Fetch team members for this plan with person details included
         const teamRes = await fetch(
-          `${baseUrl}/service_types/${serviceType.id}/plans/${plan.id}/team_members?per_page=100`,
+          `${baseUrl}/service_types/${serviceType.id}/plans/${plan.id}/team_members?per_page=100&include=person`,
           { headers: { 'Authorization': `Basic ${credentials}` } }
         );
 
@@ -174,6 +175,16 @@ serve(async (req) => {
 
         const teamData = await teamRes.json();
         console.log(`Found ${teamData.data?.length || 0} team members`);
+
+        // Create a map of person data from includes
+        const personMap = new Map<string, any>();
+        if (teamData.included) {
+          for (const item of teamData.included) {
+            if (item.type === 'Person') {
+              personMap.set(item.id, item);
+            }
+          }
+        }
 
         // Prepare batch data for schedules
         const schedulesToUpsert: any[] = [];
@@ -188,6 +199,10 @@ serve(async (req) => {
           
           const teamPosition = member.attributes.team_position_name || '';
           const parts = teamPosition.split(' - ');
+
+          // Get person data from includes to extract avatar URL
+          const personData = personMap.get(personId);
+          const avatarUrl = personData?.attributes?.avatar || member.attributes?.photo_thumbnail || null;
           
           schedulesToUpsert.push({
             service_id: service.id,
@@ -198,11 +213,12 @@ serve(async (req) => {
             confirmation_status: confirmationStatus,
           });
 
-          // Collect volunteer for QR code generation
+          // Collect volunteer for QR code generation with avatar
           if (personId && member.attributes.name) {
             allVolunteers.set(personId, {
               planning_center_person_id: personId,
               volunteer_name: member.attributes.name,
+              avatar_url: avatarUrl,
             });
           }
         }
@@ -246,20 +262,28 @@ serve(async (req) => {
 
     console.log(`Sync completed: ${totalServices} services, ${totalSchedules} new schedules`);
 
-    // Generate QR codes for all collected volunteers
+    // Generate QR codes for all collected volunteers (with avatar_url)
     const volunteerQrCodes = Array.from(allVolunteers.values());
+    let avatarsImported = 0;
+    
     if (volunteerQrCodes.length > 0) {
       console.log(`Generating QR codes for ${volunteerQrCodes.length} volunteers...`);
+      
+      // Count volunteers with avatars
+      avatarsImported = volunteerQrCodes.filter(v => v.avatar_url).length;
+      console.log(`Found ${avatarsImported} volunteers with avatar photos`);
       
       // Process in batches of 100
       const batchSize = 100;
       for (let i = 0; i < volunteerQrCodes.length; i += batchSize) {
         const batch = volunteerQrCodes.slice(i, i + batchSize);
+        
+        // For upsert, we need to update avatar_url if it exists
         const { error: qrError } = await supabaseClient
           .from('volunteer_qrcodes')
           .upsert(batch, { 
             onConflict: 'planning_center_person_id',
-            ignoreDuplicates: true 
+            ignoreDuplicates: false  // Changed to false to update avatar_url
           });
         
         if (qrError) {
@@ -268,6 +292,16 @@ serve(async (req) => {
       }
       console.log(`QR codes generated for ${volunteerQrCodes.length} volunteers`);
     }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      services: totalServices,
+      newSchedules: totalSchedules,
+      qrCodesGenerated: volunteerQrCodes.length,
+      avatarsImported
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
     return new Response(JSON.stringify({ 
       success: true, 
