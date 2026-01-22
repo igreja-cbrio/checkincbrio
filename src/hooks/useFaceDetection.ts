@@ -13,12 +13,15 @@ interface UseFaceDetectionReturn {
   error: string | null;
   videoRef: React.RefObject<HTMLVideoElement>;
   canvasRef: React.RefObject<HTMLCanvasElement>;
-  startCamera: () => Promise<void>;
+  startCamera: () => Promise<boolean>;
   stopCamera: () => void;
   detectFace: () => Promise<Float32Array | null>;
   isCameraActive: boolean;
   faceDetected: boolean;
 }
+
+// Camera start timeout in ms (important for iOS Safari)
+const CAMERA_START_TIMEOUT = 8000;
 
 export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFaceDetectionReturn {
   const { onFaceDetected, autoDetect = false, detectionInterval = 500 } = options;
@@ -70,38 +73,112 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
     loadModels();
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (): Promise<boolean> => {
     try {
       setError(null);
       
+      // Request camera with explicit constraints for iOS compatibility
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280, min: 640 },
           height: { ideal: 960, min: 480 },
           facingMode: 'user',
         },
+        audio: false,
       });
       
       streamRef.current = stream;
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Wait for video to be ready
-        await new Promise<void>((resolve) => {
-          if (videoRef.current) {
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play().then(() => resolve());
-            };
+      if (!videoRef.current) {
+        throw new Error('Video element not available');
+      }
+
+      const video = videoRef.current;
+      
+      // Set up video element for iOS Safari compatibility
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+
+      // Create a promise that resolves when video is ready to play
+      // with timeout protection for iOS Safari
+      const videoReady = await Promise.race([
+        new Promise<boolean>((resolve, reject) => {
+          const onCanPlay = () => {
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            resolve(true);
+          };
+          
+          const onError = (e: Event) => {
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onError);
+            reject(new Error('Video element error'));
+          };
+
+          // iOS Safari sometimes needs loadedmetadata first
+          const onLoadedMetadata = () => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            // After metadata, try to play
+            video.play()
+              .then(() => {
+                video.removeEventListener('canplay', onCanPlay);
+                video.removeEventListener('error', onError);
+                resolve(true);
+              })
+              .catch((playError) => {
+                console.warn('Initial play failed, waiting for canplay:', playError);
+                // Wait for canplay event instead
+              });
+          };
+
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          video.addEventListener('canplay', onCanPlay);
+          video.addEventListener('error', onError);
+
+          // If video is already ready (rare but possible)
+          if (video.readyState >= 3) {
+            video.play()
+              .then(() => resolve(true))
+              .catch(() => {/* wait for events */});
           }
-        });
-        
+        }),
+        new Promise<boolean>((_, reject) => 
+          setTimeout(() => reject(new Error('Camera start timeout')), CAMERA_START_TIMEOUT)
+        ),
+      ]);
+
+      if (videoReady) {
         setIsCameraActive(true);
         console.log('Camera started successfully');
+        return true;
       }
-    } catch (err) {
+      
+      return false;
+    } catch (err: any) {
       console.error('Failed to access camera:', err);
-      setError('Não foi possível acessar a câmera. Verifique as permissões.');
+      
+      // Clean up stream if we got one
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
+      // Provide user-friendly error messages
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setError('Permissão de câmera negada. Toque em "Permitir" quando solicitado.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setError('Nenhuma câmera encontrada neste dispositivo.');
+      } else if (err.message === 'Camera start timeout') {
+        setError('Tempo esgotado ao iniciar câmera. Toque em "Iniciar" novamente.');
+      } else {
+        setError('Não foi possível acessar a câmera. Verifique as permissões.');
+      }
+      
+      return false;
     }
   }, []);
 
@@ -126,13 +203,11 @@ export function useFaceDetection(options: UseFaceDetectionOptions = {}): UseFace
 
   const detectFace = useCallback(async (): Promise<Float32Array | null> => {
     if (!videoRef.current || !isReady || !isCameraActive) {
-      console.log('Detection skipped:', { video: !!videoRef.current, isReady, isCameraActive });
       return null;
     }
 
     // Ensure video is ready
     if (videoRef.current.readyState < 2) {
-      console.log('Video not ready yet');
       return null;
     }
 

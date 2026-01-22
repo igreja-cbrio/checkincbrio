@@ -15,39 +15,44 @@ export function useFaceEnrollment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params: EnrollFaceParams) => {
-      const { volunteerId, volunteerName, planningCenterId, source, faceDescriptor, photoBlob } = params;
-      
-      // Convert Float32Array to regular array for storage
+    mutationFn: async ({
+      volunteerId,
+      volunteerName,
+      source,
+      faceDescriptor,
+      photoBlob,
+    }: EnrollFaceParams) => {
+      // Convert Float32Array to regular number array for RPC
       const descriptorArray = Array.from(faceDescriptor);
       
+      // Validate descriptor length
+      if (descriptorArray.length !== 128) {
+        throw new Error(`Descriptor inválido: esperado 128 dimensões, recebido ${descriptorArray.length}`);
+      }
+
       // Upload photo if provided
       let photoUrl: string | null = null;
       if (photoBlob) {
-        const fileName = `${volunteerId}_${Date.now()}.jpg`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const fileName = `${volunteerId}-${Date.now()}.jpg`;
+        const { error: uploadError } = await supabase.storage
           .from('face-photos')
           .upload(fileName, photoBlob, {
             contentType: 'image/jpeg',
             upsert: true,
           });
-        
+
         if (uploadError) {
           console.error('Photo upload error:', uploadError);
-          throw new Error('Falha ao enviar foto');
+          // Continue without photo - not critical
+        } else {
+          const { data: urlData } = supabase.storage
+            .from('face-photos')
+            .getPublicUrl(fileName);
+          photoUrl = urlData.publicUrl;
         }
-        
-        const { data: urlData } = supabase.storage
-          .from('face-photos')
-          .getPublicUrl(fileName);
-        
-        photoUrl = urlData.publicUrl;
       }
 
-      // Format descriptor as PostgreSQL vector string
-      const vectorString = `[${descriptorArray.join(',')}]`;
-      
-      console.log('Saving face descriptor:', {
+      console.log('Saving face descriptor via RPC:', {
         volunteerId,
         volunteerName,
         source,
@@ -56,53 +61,59 @@ export function useFaceEnrollment() {
         photoUrl,
       });
 
-      // Update the appropriate table based on source
+      // Use the appropriate RPC function based on source
       if (source === 'profile') {
-        const { data, error } = await supabase
-          .from('profiles')
-          .update({ 
-            face_descriptor: vectorString,
-            avatar_url: photoUrl || undefined,
-          })
-          .eq('id', volunteerId)
-          .select('id, face_descriptor');
-        
+        const { data, error } = await supabase.rpc('save_profile_face_descriptor', {
+          profile_id: volunteerId,
+          descriptor: descriptorArray,
+          photo_url: photoUrl,
+        });
+
         if (error) {
-          console.error('Profile update error:', error);
+          console.error('Profile RPC error:', error);
           throw new Error('Falha ao salvar dados faciais: ' + error.message);
         }
-        
+
         if (!data || data.length === 0) {
-          console.error('No profile rows updated - check RLS or ID');
-          throw new Error('Perfil não encontrado ou sem permissão para atualizar');
+          console.error('No profile rows returned from RPC');
+          throw new Error('Perfil não encontrado. Verifique o ID.');
         }
-        
-        console.log('Profile updated successfully:', data[0]);
+
+        const result = data[0];
+        if (!result.saved) {
+          console.error('Profile face_descriptor not saved:', result);
+          throw new Error('Falha ao persistir dados faciais. Tente novamente.');
+        }
+
+        console.log('Profile face descriptor saved successfully:', result);
       } else {
-        // For volunteer_qrcodes, update by id
-        const { data, error } = await supabase
-          .from('volunteer_qrcodes')
-          .update({ 
-            face_descriptor: vectorString,
-            avatar_url: photoUrl || undefined,
-          })
-          .eq('id', volunteerId)
-          .select('id, volunteer_name, face_descriptor');
-        
+        // For volunteer_qrcodes
+        const { data, error } = await supabase.rpc('save_volunteer_qrcode_face_descriptor', {
+          qrcode_id: volunteerId,
+          descriptor: descriptorArray,
+          photo_url: photoUrl,
+        });
+
         if (error) {
-          console.error('Volunteer QR code update error:', error);
+          console.error('Volunteer QR code RPC error:', error);
           throw new Error('Falha ao salvar dados faciais: ' + error.message);
         }
-        
+
         if (!data || data.length === 0) {
-          console.error('No volunteer_qrcodes rows updated - check RLS or ID:', volunteerId);
-          throw new Error('Voluntário não encontrado ou sem permissão para atualizar');
+          console.error('No volunteer_qrcodes rows returned from RPC');
+          throw new Error('Voluntário não encontrado. Verifique o ID.');
         }
-        
-        console.log('Volunteer QR code updated successfully:', {
-          id: data[0].id,
-          name: data[0].volunteer_name,
-          hasDescriptor: !!data[0].face_descriptor,
+
+        const result = data[0];
+        if (!result.saved) {
+          console.error('Volunteer face_descriptor not saved:', result);
+          throw new Error('Falha ao persistir dados faciais. Tente novamente.');
+        }
+
+        console.log('Volunteer QR code face descriptor saved successfully:', {
+          id: result.id,
+          name: result.volunteer_name,
+          saved: result.saved,
         });
       }
 
@@ -110,16 +121,19 @@ export function useFaceEnrollment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['volunteers-qrcodes'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       toast.success('Rosto cadastrado com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao cadastrar rosto');
+      console.error('Face enrollment failed:', error);
+      toast.error(error.message || 'Falha ao cadastrar rosto');
     },
   });
 }
 
-interface FaceMatchResult {
-  volunteer_id: string | null;
+// Match face against enrolled faces
+export interface FaceMatchResult {
+  volunteer_id: string;
   volunteer_name: string;
   planning_center_id: string | null;
   avatar_url: string | null;
@@ -131,22 +145,31 @@ export function useFaceMatch() {
   return useMutation({
     mutationFn: async (faceDescriptor: Float32Array): Promise<FaceMatchResult | null> => {
       const descriptorArray = Array.from(faceDescriptor);
-      const vectorString = `[${descriptorArray.join(',')}]`;
       
+      // Format as PostgreSQL vector string for the RPC
+      const vectorString = `[${descriptorArray.join(',')}]`;
+
       const { data, error } = await supabase.rpc('find_face_match', {
         query_descriptor: vectorString,
         match_threshold: 0.6,
       });
-      
+
       if (error) {
         console.error('Face match error:', error);
-        throw new Error('Erro ao buscar correspondência facial');
+        throw error;
       }
-      
+
       if (data && data.length > 0) {
-        return data[0] as FaceMatchResult;
+        const match = data[0];
+        console.log('Face match found:', {
+          name: match.volunteer_name,
+          distance: match.distance,
+          source: match.source,
+        });
+        return match;
       }
-      
+
+      console.log('No face match found');
       return null;
     },
   });
