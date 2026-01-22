@@ -118,7 +118,7 @@ export default function QrCodeManagementPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold truncate">{volunteer.full_name}</p>
-                    {volunteer.source === 'profile' ? (
+                        {volunteer.source === 'profile' ? (
                           <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/30">
                             Com Conta
                           </Badge>
@@ -129,6 +129,12 @@ export default function QrCodeManagementPage() {
                         ) : (
                           <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
                             Sem QR
+                          </Badge>
+                        )}
+                        {volunteer.has_face && (
+                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 border-purple-500/30">
+                            <Scan className="h-3 w-3 mr-1" />
+                            Facial
                           </Badge>
                         )}
                       </div>

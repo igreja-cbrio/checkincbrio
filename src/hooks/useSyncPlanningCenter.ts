@@ -5,6 +5,7 @@ interface SyncResult {
   success: boolean;
   services: number;
   newSchedules: number;
+  avatarsImported?: number;
   error?: string;
 }
 
