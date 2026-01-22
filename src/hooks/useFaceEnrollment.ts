@@ -44,39 +44,66 @@ export function useFaceEnrollment() {
         photoUrl = urlData.publicUrl;
       }
 
+      // Format descriptor as PostgreSQL vector string
+      const vectorString = `[${descriptorArray.join(',')}]`;
+      
+      console.log('Saving face descriptor:', {
+        volunteerId,
+        volunteerName,
+        source,
+        descriptorLength: descriptorArray.length,
+        descriptorSample: descriptorArray.slice(0, 5),
+        photoUrl,
+      });
+
       // Update the appropriate table based on source
       if (source === 'profile') {
-        // Format descriptor as PostgreSQL vector string
-        const vectorString = `[${descriptorArray.join(',')}]`;
-        
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('profiles')
           .update({ 
             face_descriptor: vectorString,
             avatar_url: photoUrl || undefined,
           })
-          .eq('id', volunteerId);
+          .eq('id', volunteerId)
+          .select('id, face_descriptor');
         
         if (error) {
           console.error('Profile update error:', error);
-          throw new Error('Falha ao salvar dados faciais');
+          throw new Error('Falha ao salvar dados faciais: ' + error.message);
         }
+        
+        if (!data || data.length === 0) {
+          console.error('No profile rows updated - check RLS or ID');
+          throw new Error('Perfil não encontrado ou sem permissão para atualizar');
+        }
+        
+        console.log('Profile updated successfully:', data[0]);
       } else {
         // For volunteer_qrcodes, update by id
-        const vectorString = `[${descriptorArray.join(',')}]`;
-        
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('volunteer_qrcodes')
           .update({ 
             face_descriptor: vectorString,
             avatar_url: photoUrl || undefined,
           })
-          .eq('id', volunteerId);
+          .eq('id', volunteerId)
+          .select('id, volunteer_name, face_descriptor');
         
         if (error) {
           console.error('Volunteer QR code update error:', error);
-          throw new Error('Falha ao salvar dados faciais');
+          throw new Error('Falha ao salvar dados faciais: ' + error.message);
         }
+        
+        if (!data || data.length === 0) {
+          console.error('No volunteer_qrcodes rows updated - check RLS or ID:', volunteerId);
+          throw new Error('Voluntário não encontrado ou sem permissão para atualizar');
+        }
+        
+        console.log('Volunteer QR code updated successfully:', {
+          id: data[0].id,
+          name: data[0].volunteer_name,
+          hasDescriptor: !!data[0].face_descriptor,
+        });
       }
 
       return { success: true, photoUrl };
