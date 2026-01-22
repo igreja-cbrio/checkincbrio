@@ -95,6 +95,7 @@ interface FaceMatchResult {
   volunteer_id: string | null;
   volunteer_name: string;
   planning_center_id: string | null;
+  avatar_url: string | null;
   source: string;
   distance: number;
 }

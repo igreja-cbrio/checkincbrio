@@ -241,6 +241,7 @@ export type Database = {
       find_face_match: {
         Args: { match_threshold?: number; query_descriptor: string }
         Returns: {
+          avatar_url: string
           distance: number
           planning_center_id: string
           source: string
