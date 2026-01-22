@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -48,7 +49,7 @@ export function FaceEnrollmentDialog({
     isCameraActive,
     faceDetected,
   } = useFaceDetection({ autoDetect: true, detectionInterval: 300 });
-
+  const queryClient = useQueryClient();
   const enrollmentMutation = useFaceEnrollment();
 
   const handleStartCamera = useCallback(async () => {
@@ -108,8 +109,11 @@ export function FaceEnrollmentDialog({
       photoBlob: capturedPhoto || undefined,
     });
 
+    // Invalidate cache so the "Facial" badge appears immediately
+    queryClient.invalidateQueries({ queryKey: ['volunteers-qrcodes'] });
+
     onOpenChange(false);
-  }, [volunteer, capturedDescriptor, capturedPhoto, enrollmentMutation, onOpenChange]);
+  }, [volunteer, capturedDescriptor, capturedPhoto, enrollmentMutation, onOpenChange, queryClient]);
 
   const handleClose = useCallback(() => {
     stopCamera();
