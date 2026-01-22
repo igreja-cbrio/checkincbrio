@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { FaceCamera } from '@/components/face/FaceCamera';
 import { useFaceDetection } from '@/hooks/useFaceDetection';
 import { useFaceMatch } from '@/hooks/useFaceEnrollment';
-import { Loader2, AlertCircle, UserX, Wifi, WifiOff, Camera } from 'lucide-react';
+import { Loader2, AlertCircle, UserX, Wifi, WifiOff, Camera, SwitchCamera } from 'lucide-react';
 
 export interface FaceMatchResult {
   volunteerId: string | null;
@@ -89,11 +89,19 @@ export function AutoFaceScanner({
     stopCamera,
     isCameraActive,
     faceDetected,
+    switchCamera,
   } = useFaceDetection({
     onFaceDetected: handleFaceDetected,
     autoDetect: true,
     detectionInterval: 500,
   });
+
+  const handleSwitchCamera = useCallback(async () => {
+    await switchCamera();
+    if (scanStatus === 'scanning') {
+      // Keep scanning after switch
+    }
+  }, [switchCamera, scanStatus]);
 
   // Handle camera start with user gesture (required for iOS Safari)
   const handleStartCamera = useCallback(async () => {
@@ -172,6 +180,18 @@ export function AutoFaceScanner({
           faceDetected={faceDetected}
           className="h-full"
         />
+
+        {/* Switch camera button */}
+        {isCameraActive && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute top-4 right-4 bg-background/80 backdrop-blur z-10"
+            onClick={handleSwitchCamera}
+          >
+            <SwitchCamera className="h-5 w-5" />
+          </Button>
+        )}
 
         {/* Start camera button overlay - for iOS Safari user gesture requirement */}
         {scanStatus === 'idle' && isReady && !isCameraActive && (
