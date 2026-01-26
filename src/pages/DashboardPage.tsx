@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, QrCode, UserCheck, BarChart3, RefreshCw, Loader2, Download, CheckCircle2, History } from 'lucide-react';
@@ -11,6 +11,8 @@ import { usePWA } from '@/hooks/usePWA';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { LastSyncIndicator } from '@/components/dashboard/LastSyncIndicator';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function DashboardPage() {
   const { profile, isLeader, user } = useAuth();
@@ -18,6 +20,7 @@ export default function DashboardPage() {
   const { data: mySchedules } = useMySchedules(user?.id);
   const syncMutation = useSyncPlanningCenter();
   const { isInstalled, isInstallable, installApp } = usePWA();
+  const queryClient = useQueryClient();
 
   const upcomingSchedules = mySchedules?.filter(
     s => new Date(s.service.scheduled_at) >= new Date()
@@ -26,6 +29,7 @@ export default function DashboardPage() {
   const handleSync = async () => {
     try {
       const result = await syncMutation.mutateAsync();
+      queryClient.invalidateQueries({ queryKey: ['last-sync'] });
       toast.success(`Sincronização concluída! ${result.services} cultos, ${result.newSchedules} novas escalas.`);
     } catch (error: any) {
       toast.error(error.message || 'Erro ao sincronizar');
@@ -76,6 +80,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Last Sync Indicator - Leaders Only */}
+      {isLeader && <LastSyncIndicator />}
 
       {/* Quick Actions - Mobile Grid */}
       <div className="grid grid-cols-2 gap-3">
