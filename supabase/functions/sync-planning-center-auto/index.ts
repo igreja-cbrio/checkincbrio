@@ -20,25 +20,24 @@ serve(async (req) => {
   console.log('Starting automatic Planning Center sync...');
 
   try {
-    // Verify CRON_SECRET for internal cron calls
+    // Verify authorization - accept CRON_SECRET or ANON_KEY for cron calls
     const authHeader = req.headers.get('Authorization');
     const cronSecret = Deno.env.get('CRON_SECRET');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     
-    if (!cronSecret) {
-      console.error('CRON_SECRET not configured');
-      return new Response(
-        JSON.stringify({ error: 'CRON_SECRET not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
+    const token = authHeader?.replace('Bearer ', '');
+    const isValidCronSecret = cronSecret && token === cronSecret;
+    const isValidAnonKey = anonKey && token === anonKey;
+    
+    if (!isValidCronSecret && !isValidAnonKey) {
       console.error('Invalid or missing authorization');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log('Authorization validated, source:', isValidCronSecret ? 'CRON_SECRET' : 'ANON_KEY');
 
     // Create service role client for database operations
     const supabaseClient = createClient(
