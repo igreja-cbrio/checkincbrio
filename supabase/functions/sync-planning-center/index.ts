@@ -293,21 +293,24 @@ serve(async (req) => {
       console.log(`QR codes generated for ${volunteerQrCodes.length} volunteers`);
     }
 
+    // Log successful sync
+    await supabaseClient
+      .from('sync_logs')
+      .insert({
+        sync_type: 'manual',
+        services_synced: totalServices,
+        schedules_synced: totalSchedules,
+        qrcodes_generated: volunteerQrCodes.length,
+        status: 'success',
+        triggered_by: userId,
+      });
+
     return new Response(JSON.stringify({ 
       success: true, 
       services: totalServices,
       newSchedules: totalSchedules,
       qrCodesGenerated: volunteerQrCodes.length,
       avatarsImported
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
-    return new Response(JSON.stringify({ 
-      success: true, 
-      services: totalServices,
-      newSchedules: totalSchedules,
-      qrCodesGenerated: volunteerQrCodes.length
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

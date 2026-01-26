@@ -179,6 +179,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          qrcodes_generated: number
+          schedules_synced: number
+          services_synced: number
+          status: string
+          sync_type: string
+          triggered_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          qrcodes_generated?: number
+          schedules_synced?: number
+          services_synced?: number
+          status?: string
+          sync_type?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          qrcodes_generated?: number
+          schedules_synced?: number
+          services_synced?: number
+          status?: string
+          sync_type?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
