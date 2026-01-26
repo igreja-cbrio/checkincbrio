@@ -3,6 +3,9 @@ project_id = "cshrensaapqwwxtrztfd"
 [functions.sync-planning-center]
 verify_jwt = false
 
+[functions.sync-planning-center-auto]
+verify_jwt = false
+
 [functions.search-planning-center-people]
 verify_jwt = false
 
