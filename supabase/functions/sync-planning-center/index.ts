@@ -12,6 +12,82 @@ interface VolunteerQrCode {
   avatar_url: string | null;
 }
 
+interface TeamMemberResponse {
+  data: any[];
+  included: any[];
+  links?: { next?: string };
+  meta?: { total_count?: number };
+}
+
+// Helper function to fetch ALL team members with pagination
+async function fetchAllTeamMembers(
+  baseUrl: string,
+  serviceTypeId: string,
+  planId: string,
+  credentials: string
+): Promise<TeamMemberResponse> {
+  const allMembers: any[] = [];
+  const allIncluded: any[] = [];
+  let offset = 0;
+  const perPage = 100;
+  let totalCount = 0;
+  let pageCount = 0;
+
+  console.log(`[Pagination] Starting to fetch team members for plan ${planId}`);
+
+  while (true) {
+    const url = `${baseUrl}/service_types/${serviceTypeId}/plans/${planId}/team_members?per_page=${perPage}&offset=${offset}&include=person`;
+    
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Basic ${credentials}` }
+    });
+
+    if (!response.ok) {
+      console.error(`[Pagination] Error fetching page at offset ${offset}: ${response.status}`);
+      break;
+    }
+
+    const data: TeamMemberResponse = await response.json();
+    pageCount++;
+    
+    const membersInPage = data.data?.length || 0;
+    console.log(`[Pagination] Page ${pageCount}: fetched ${membersInPage} members (offset: ${offset})`);
+    
+    if (data.meta?.total_count && totalCount === 0) {
+      totalCount = data.meta.total_count;
+      console.log(`[Pagination] Total members reported by API: ${totalCount}`);
+    }
+
+    if (data.data) {
+      allMembers.push(...data.data);
+    }
+    
+    if (data.included) {
+      allIncluded.push(...data.included);
+    }
+
+    // Check if there are more pages
+    if (!data.data || data.data.length < perPage) {
+      console.log(`[Pagination] Finished: retrieved ${allMembers.length} total members in ${pageCount} pages`);
+      break;
+    }
+
+    offset += perPage;
+    
+    // Safety limit to prevent infinite loops
+    if (pageCount >= 50) {
+      console.warn(`[Pagination] Safety limit reached at 50 pages (${allMembers.length} members)`);
+      break;
+    }
+  }
+
+  return {
+    data: allMembers,
+    included: allIncluded,
+    meta: { total_count: allMembers.length }
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -114,31 +190,35 @@ serve(async (req) => {
 
     let totalServices = 0;
     let totalSchedules = 0;
+    let totalMembersFound = 0;
+    let totalMembersProcessed = 0;
     const allVolunteers = new Map<string, VolunteerQrCode>();
 
     // Process service types in parallel with limited concurrency
     const processServiceType = async (serviceType: any) => {
       let typeServices = 0;
       let typeSchedules = 0;
+      let typeMembersFound = 0;
+      let typeMembersProcessed = 0;
       
-      console.log(`Processing service type: ${serviceType.attributes.name}`);
+      console.log(`\n=== Processing service type: ${serviceType.attributes.name} ===`);
       
-      // Fetch only next 3 upcoming plans (reduced from 10)
+      // Fetch next 10 upcoming plans (increased from 3)
       const plansRes = await fetch(
-        `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=3`,
+        `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=10`,
         { headers: { 'Authorization': `Basic ${credentials}` } }
       );
 
       if (!plansRes.ok) {
         console.error(`Error fetching plans for ${serviceType.attributes.name}`);
-        return { services: 0, schedules: 0 };
+        return { services: 0, schedules: 0, membersFound: 0, membersProcessed: 0 };
       }
 
       const plansData = await plansRes.json();
-      console.log(`Found ${plansData.data?.length || 0} plans for ${serviceType.attributes.name}`);
+      console.log(`Found ${plansData.data?.length || 0} future plans for ${serviceType.attributes.name}`);
 
-      // Process plans in parallel
-      const planPromises = (plansData.data || []).map(async (plan: any) => {
+      // Process plans sequentially to avoid rate limiting
+      for (const plan of plansData.data || []) {
         const serviceDate = plan.attributes.sort_date;
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
@@ -156,25 +236,17 @@ serve(async (req) => {
 
         if (serviceError) {
           console.error('Error upserting service:', serviceError);
-          return { services: 0, schedules: 0 };
+          continue;
         }
 
         typeServices++;
-        console.log(`Synced service: ${serviceName} on ${serviceDate}`);
+        console.log(`\nSyncing service: ${serviceName} on ${serviceDate} (Plan ID: ${plan.id})`);
 
-        // Fetch team members for this plan with person details included
-        const teamRes = await fetch(
-          `${baseUrl}/service_types/${serviceType.id}/plans/${plan.id}/team_members?per_page=100&include=person`,
-          { headers: { 'Authorization': `Basic ${credentials}` } }
-        );
-
-        if (!teamRes.ok) {
-          console.error(`Error fetching team for plan ${plan.id}`);
-          return { services: 1, schedules: 0 };
-        }
-
-        const teamData = await teamRes.json();
-        console.log(`Found ${teamData.data?.length || 0} team members`);
+        // Fetch ALL team members with pagination
+        const teamData = await fetchAllTeamMembers(baseUrl, serviceType.id, plan.id, credentials);
+        
+        typeMembersFound += teamData.data.length;
+        console.log(`[Stats] Total team members found for this plan: ${teamData.data.length}`);
 
         // Create a map of person data from includes
         const personMap = new Map<string, any>();
@@ -186,15 +258,27 @@ serve(async (req) => {
           }
         }
 
-        // Prepare batch data for schedules
-        const schedulesToUpsert: any[] = [];
+        // Prepare batch data for schedules - process ALL members without status filter
+        const scheduleMap = new Map<string, any>();
+        const statusCounts: Record<string, number> = {};
         
         for (const member of teamData.data || []) {
-          const memberStatus = member.attributes.status;
-          if (!['C', 'U', 'D', 'S'].includes(memberStatus)) continue;
+          const memberStatus = member.attributes.status || 'unknown';
+          
+          // Count statuses for logging
+          statusCounts[memberStatus] = (statusCounts[memberStatus] || 0) + 1;
 
           const personId = member.relationships?.person?.data?.id || member.id;
-          const statusMap: Record<string, string> = { 'C': 'confirmed', 'U': 'pending', 'D': 'declined', 'S': 'scheduled' };
+          
+          // Map ALL statuses - not just C, U, D, S
+          const statusMap: Record<string, string> = { 
+            'C': 'confirmed', 
+            'U': 'pending', 
+            'D': 'declined', 
+            'S': 'scheduled',
+            'P': 'pending',  // Potentially confirmed
+            'N': 'pending',  // Not yet responded
+          };
           const confirmationStatus = statusMap[memberStatus] || 'unknown';
           
           const teamPosition = member.attributes.team_position_name || '';
@@ -204,14 +288,19 @@ serve(async (req) => {
           const personData = personMap.get(personId);
           const avatarUrl = personData?.attributes?.avatar || member.attributes?.photo_thumbnail || null;
           
-          schedulesToUpsert.push({
-            service_id: service.id,
-            planning_center_person_id: personId,
-            volunteer_name: member.attributes.name,
-            team_name: parts[0] || null,
-            position_name: parts[1] || null,
-            confirmation_status: confirmationStatus,
-          });
+          // Use Map to deduplicate by personId within the same service
+          const key = `${service.id}_${personId}`;
+          if (!scheduleMap.has(key)) {
+            scheduleMap.set(key, {
+              service_id: service.id,
+              planning_center_person_id: personId,
+              volunteer_name: member.attributes.name,
+              team_name: parts[0] || null,
+              position_name: parts[1] || null,
+              confirmation_status: confirmationStatus,
+            });
+            typeMembersProcessed++;
+          }
 
           // Collect volunteer for QR code generation with avatar
           if (personId && member.attributes.name) {
@@ -223,27 +312,40 @@ serve(async (req) => {
           }
         }
 
-        // Batch upsert all schedules at once
+        // Log status distribution
+        console.log(`[Stats] Status distribution: ${JSON.stringify(statusCounts)}`);
+        console.log(`[Stats] Unique volunteers for this plan: ${scheduleMap.size}`);
+
+        // Batch upsert all schedules
+        const schedulesToUpsert = Array.from(scheduleMap.values());
         if (schedulesToUpsert.length > 0) {
-          const { error: upsertError } = await supabaseClient
-            .from('schedules')
-            .upsert(schedulesToUpsert, { 
-              onConflict: 'service_id,planning_center_person_id',
-              ignoreDuplicates: false 
-            });
-          
-          if (!upsertError) {
-            typeSchedules += schedulesToUpsert.length;
-          } else {
-            console.error('Batch upsert error:', upsertError);
+          // Process in smaller batches to avoid conflicts
+          for (const schedule of schedulesToUpsert) {
+            const { error: upsertError } = await supabaseClient
+              .from('schedules')
+              .upsert(schedule, { 
+                onConflict: 'service_id,planning_center_person_id',
+              });
+            
+            if (!upsertError) {
+              typeSchedules++;
+            } else {
+              console.error('Upsert error:', upsertError);
+            }
           }
         }
+      }
 
-        return { services: 1, schedules: schedulesToUpsert.length };
-      });
+      console.log(`\n=== ${serviceType.attributes.name} Summary ===`);
+      console.log(`Services: ${typeServices}, Schedules: ${typeSchedules}`);
+      console.log(`Members found: ${typeMembersFound}, Processed: ${typeMembersProcessed}`);
 
-      await Promise.all(planPromises);
-      return { services: typeServices, schedules: typeSchedules };
+      return { 
+        services: typeServices, 
+        schedules: typeSchedules,
+        membersFound: typeMembersFound,
+        membersProcessed: typeMembersProcessed
+      };
     };
 
     // Process all service types in parallel (batch of 5 at a time)
@@ -257,10 +359,19 @@ serve(async (req) => {
       for (const result of results) {
         totalServices += result.services;
         totalSchedules += result.schedules;
+        totalMembersFound += result.membersFound;
+        totalMembersProcessed += result.membersProcessed;
       }
     }
 
-    console.log(`Sync completed: ${totalServices} services, ${totalSchedules} new schedules`);
+    console.log(`\n========================================`);
+    console.log(`SYNC COMPLETED`);
+    console.log(`Total services: ${totalServices}`);
+    console.log(`Total schedules: ${totalSchedules}`);
+    console.log(`Total members found: ${totalMembersFound}`);
+    console.log(`Total members processed: ${totalMembersProcessed}`);
+    console.log(`Unique volunteers: ${allVolunteers.size}`);
+    console.log(`========================================\n`);
 
     // Generate QR codes for all collected volunteers (with avatar_url)
     const volunteerQrCodes = Array.from(allVolunteers.values());
@@ -310,7 +421,9 @@ serve(async (req) => {
       services: totalServices,
       newSchedules: totalSchedules,
       qrCodesGenerated: volunteerQrCodes.length,
-      avatarsImported
+      avatarsImported,
+      totalMembersFound,
+      totalMembersProcessed
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
