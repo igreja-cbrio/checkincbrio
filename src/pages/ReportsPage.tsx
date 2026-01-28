@@ -294,7 +294,11 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {serviceData.slice(0, 10).map((service, index) => (
-                    <div key={index} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <Link
+                      key={index}
+                      to={`/service/${service.service_id}/checkins`}
+                      className="flex items-center justify-between py-2 border-b last:border-0 hover:bg-muted/50 -mx-2 px-2 rounded transition-colors"
+                    >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{service.service_name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -311,8 +315,9 @@ export default function ReportsPage() {
                         >
                           {Math.round(service.attendance_rate)}%
                         </Badge>
+                        <History className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </CardContent>
               </Card>

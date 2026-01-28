@@ -11,6 +11,7 @@ export interface AttendanceReport {
 }
 
 export interface ServiceReport {
+  service_id: string;
   service_name: string;
   scheduled_at: string;
   total_scheduled: number;
@@ -159,6 +160,7 @@ export function useServiceReport(
         const totalCheckedIn = filteredSchedules.filter((s: any) => s.check_in && s.check_in.length > 0).length;
         
         return {
+          service_id: service.id,
           service_name: service.name,
           scheduled_at: service.scheduled_at,
           total_scheduled: totalScheduled,
