@@ -1,154 +1,111 @@
 
-# Plano: Histórico de Check-in por Culto + Correção da Sincronização
 
-## Problema Identificado
+# Plano: Correção do Histórico de Culto
 
-Analisando os logs e o banco de dados, identifiquei dois problemas principais:
+## Problemas Identificados
 
-### 1. Sincronização Incompleta
-"Dudu Bernardo" está escalado no Planning Center para "Quarta Com Deus" mas não aparece no sistema. A causa raiz é um **erro de duplicação durante o upsert**:
+### Problema 1: Seletor de culto "travado" no culto de hoje
+Ao trocar o culto no seletor da página `/service-history`, a seleção não atualiza corretamente. A página continua mostrando os dados do primeiro culto selecionado.
 
+**Causa raiz:** Há um bug no componente `ServiceCheckInHistoryPage.tsx` nas linhas 27-29:
+```javascript
+// Este código causa update durante render - anti-pattern React
+if (paramServiceId && paramServiceId !== selectedServiceId) {
+  setSelectedServiceId(paramServiceId);
+}
 ```
-ON CONFLICT DO UPDATE command cannot affect row a second time
+
+Este padrão de atualização de estado durante a renderização pode causar comportamento inesperado. Além disso, quando o usuário muda a seleção manualmente, o `paramServiceId` da URL não muda, mas o código tenta sincronizar de forma incorreta.
+
+### Problema 2: Botão de histórico não aparece na tela principal de check-in
+O botão "Ver Histórico" existe em `CheckinPage.tsx` (linhas 209-217), mas está dentro do bloco condicional que só aparece quando um culto está selecionado:
+```javascript
+{selectedServiceId && (
+  <div className="flex flex-col sm:flex-row gap-2">
+    <Button ... >Modo Totem</Button>
+    <Button ... >Ver Histórico</Button>  // Só visível após selecionar culto
+  </div>
+)}
 ```
 
-**O que está acontecendo:**
-- Quando um voluntário tem múltiplas posições no mesmo culto (ex: "Baixo" + outro time), a API retorna múltiplos registros
-- O código atual faz deduplicação em memória, mas quando a escala já existe no banco de dados, o primeiro upsert atualiza a linha
-- Se o segundo registro tenta ser inserido na mesma transação batch, o PostgreSQL rejeita porque a linha já foi tocada
-- Isso faz com que toda a escala do culto falhe silenciosamente
-
-### 2. Falta de Histórico por Culto
-Atualmente o sistema tem histórico por voluntário, mas não há uma visão de "quem fez check-in em cada culto" para análise posterior.
+O usuário quer que o botão de histórico esteja sempre visível para navegar à página `/service-history` mesmo sem selecionar um culto.
 
 ---
 
 ## Solução Proposta
 
-### Parte 1: Correção da Sincronização
+### Correção 1: Página de Histórico de Culto
 
-**Mudança na Edge Function `sync-planning-center/index.ts`:**
+Reescrever a lógica de estado em `ServiceCheckInHistoryPage.tsx`:
 
-1. **Coletar todos os membros antes de processar**
-   - Em vez de fazer upsert individual durante a iteração, acumular todos os registros
-   
-2. **Deduplicar corretamente antes do upsert**
-   - Usar Map com chave `${service_id}_${person_id}` para garantir unicidade
-   - Mesclar informações de múltiplas posições (concatenar team_names se necessário)
+1. Usar `useEffect` para sincronizar o parâmetro da URL com o estado
+2. Garantir que a mudança no Select atualize corretamente o estado
+3. Evitar atualizações de estado durante o render
 
-3. **Processar um por um com tratamento de erro individual**
-   - Fazer upserts individuais (não em batch) para evitar o erro 21000
-   - Se um falhar, continuar com os outros
-   - Logar erros específicos para diagnóstico
-
-4. **Aplicar as mesmas correções na versão automática**
-
+**Lógica corrigida:**
 ```text
-Fluxo Corrigido:
-1. Buscar team_members do plano (com paginação)
-2. Acumular TODOS em um Map (key = service_id + person_id)
-3. Para cada membro no Map:
-   ├── Tentar upsert individual
-   ├── Se sucesso: contabilizar
-   └── Se erro: logar e continuar
-4. Resultado: todos os voluntários únicos são salvos
+1. Inicializar selectedServiceId com paramServiceId (se existir)
+2. useEffect para sincronizar quando paramServiceId mudar (navegação por URL)
+3. onValueChange no Select atualiza selectedServiceId normalmente
+4. React Query refaz a busca quando selectedServiceId muda
 ```
 
-### Parte 2: Histórico de Check-in por Culto
+### Correção 2: Botão de Histórico no Check-in
 
-**Criar nova página de detalhes do culto com lista de check-ins:**
+Mover o botão de histórico para fora do bloco condicional em `CheckinPage.tsx`:
 
-| Componente | Descrição |
-|------------|-----------|
-| `src/hooks/useServiceCheckIns.ts` | Hook para buscar todos os check-ins de um serviço específico |
-| `src/pages/ServiceCheckInHistoryPage.tsx` | Nova página mostrando lista de voluntários escalados e seus status de check-in |
-| `src/components/reports/ServiceCheckInList.tsx` | Componente que exibe a lista de check-ins com filtros |
-
-**Funcionalidades:**
-- Ver todos os escalados do culto
-- Ver quem fez check-in vs quem não fez
-- Filtrar por equipe (team)
-- Ver horário do check-in e método (QR/Manual/Facial)
-- Link do relatório "Por Culto" para esta página detalhada
-
-**Estrutura da página:**
-```text
-/service/:serviceId/checkins
-
-┌─────────────────────────────────────────┐
-│ Quarta Com Deus - 28/01 20:00           │
-│ 12/33 check-ins (36%)                   │
-├─────────────────────────────────────────┤
-│ [Filtro: Todas Equipes ▼]               │
-├─────────────────────────────────────────┤
-│ ✅ João Silva     - Vocal      - 19:45  │
-│ ✅ Maria Santos   - Baixo      - 19:50  │
-│ ⏳ Pedro Costa    - Teclado    - --:--  │
-│ ✅ Ana Oliveira   - Recepção   - 19:55  │
-│ ⏳ Dudu Bernardo  - Baixo      - --:--  │
-│ ...                                      │
-└─────────────────────────────────────────┘
-```
+1. Adicionar um botão "Histórico de Cultos" na área do header, ao lado do botão "Sincronizar"
+2. Este botão navega para `/service-history` sem precisar selecionar um culto antes
+3. O comportamento atual do botão contextual permanece (quando culto selecionado, vai direto para o histórico daquele culto)
 
 ---
 
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
-| Tipo | Arquivo | Alteração |
-|------|---------|-----------|
-| Modificar | `supabase/functions/sync-planning-center/index.ts` | Corrigir lógica de upsert |
-| Modificar | `supabase/functions/sync-planning-center-auto/index.ts` | Aplicar mesmas correções |
-| Criar | `src/hooks/useServiceCheckIns.ts` | Hook para buscar check-ins por serviço |
-| Criar | `src/pages/ServiceCheckInHistoryPage.tsx` | Página de histórico de check-ins do culto |
-| Criar | `src/components/reports/ServiceCheckInList.tsx` | Componente de lista |
-| Modificar | `src/App.tsx` | Adicionar nova rota |
-| Modificar | `src/pages/ReportsPage.tsx` | Adicionar link para página de detalhes do culto |
-| Modificar | `src/pages/CheckinPage.tsx` | Adicionar link para ver histórico do culto selecionado |
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/ServiceCheckInHistoryPage.tsx` | Corrigir lógica de seleção usando useEffect |
+| `src/pages/CheckinPage.tsx` | Adicionar botão de histórico visível sempre |
 
 ---
 
 ## Detalhes Técnicos
 
-### Hook useServiceCheckIns
+### ServiceCheckInHistoryPage.tsx - Código Corrigido
 
 ```text
-useServiceCheckIns(serviceId: string)
-  ├── Buscar service (nome, data)
-  ├── Buscar todos os schedules do service
-  │   ├── volunteer_name
-  │   ├── team_name
-  │   ├── confirmation_status
-  │   └── check_in (se existe)
-  └── Retornar lista ordenada por team_name, depois nome
+Antes:
+- useState com paramServiceId inicial
+- Condicional durante render para sincronizar
+
+Depois:
+- useState com paramServiceId inicial
+- useEffect(() => { ... }, [paramServiceId]) para sincronizar
+- onValueChange funciona normalmente
 ```
 
-### Estrutura de Dados
+### CheckinPage.tsx - Novo Botão
+
+Adicionar um botão de acesso ao histórico na barra superior, junto ao botão de sincronização:
 
 ```text
-ServiceCheckInItem {
-  scheduleId: string
-  volunteerName: string
-  teamName: string | null
-  confirmationStatus: string
-  checkedIn: boolean
-  checkInTime: string | null
-  checkInMethod: 'qr_code' | 'manual' | 'facial' | null
-}
+Layout atual:
+┌────────────────────────────────────────┐
+│ Check-in           [Sincronizar]       │
+│ Registre a presença                    │
+├────────────────────────────────────────┤
 
-ServiceCheckInSummary {
-  serviceName: string
-  scheduledAt: string
-  totalScheduled: number
-  totalCheckedIn: number
-  attendanceRate: number
-  items: ServiceCheckInItem[]
-}
+Layout proposto:
+┌────────────────────────────────────────┐
+│ Check-in      [Histórico] [Sincronizar]│
+│ Registre a presença                    │
+├────────────────────────────────────────┤
 ```
 
 ---
 
 ## Resultado Esperado
 
-1. **Sincronização**: Todos os voluntários escalados no Planning Center aparecerão corretamente no sistema, independente de quantas posições tenham
-2. **Histórico por Culto**: Líderes poderão acessar uma visão detalhada de cada culto para análise de presença
-3. **Navegação**: Links do relatório "Por Culto" e da página de Check-in levarão à nova página de histórico
+1. **Seletor de culto funcional:** Ao trocar o culto no dropdown, os dados serão recarregados corretamente para o novo culto selecionado
+2. **Acesso rápido ao histórico:** Botão sempre visível na tela de check-in para navegar diretamente à página de histórico de cultos
+
