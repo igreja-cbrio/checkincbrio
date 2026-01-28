@@ -15,6 +15,7 @@ import ReportsPage from "./pages/ReportsPage";
 import AdminPage from "./pages/AdminPage";
 import QrCodeManagementPage from "./pages/QrCodeManagementPage";
 import CheckInHistoryPage from "./pages/CheckInHistoryPage";
+import ServiceCheckInHistoryPage from "./pages/ServiceCheckInHistoryPage";
 import ProfilePage from "./pages/ProfilePage";
 import PlanningCenterCallback from "./pages/PlanningCenterCallback";
 import NotFound from "./pages/NotFound";
@@ -44,6 +45,8 @@ const App = () => (
               <Route path="/history" element={<CheckInHistoryPage />} />
               <Route path="/history/:volunteerId" element={<CheckInHistoryPage />} />
               <Route path="/history/by-name/:volunteerName" element={<CheckInHistoryPage />} />
+              <Route path="/service/:serviceId/checkins" element={<ServiceCheckInHistoryPage />} />
+              <Route path="/service-history" element={<ServiceCheckInHistoryPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

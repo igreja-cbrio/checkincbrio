@@ -16,7 +16,7 @@ import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History } from 'lucide-react';
 
 export default function CheckinPage() {
   const navigate = useNavigate();
@@ -195,16 +195,26 @@ export default function CheckinPage() {
         </CardContent>
       </Card>
 
-      {/* Kiosk Mode Button */}
+      {/* Action Buttons */}
       {selectedServiceId && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => navigate('/checkin/kiosk')}
-        >
-          <Monitor className="h-4 w-4 mr-2" />
-          Abrir Modo Totem
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => navigate('/checkin/kiosk')}
+          >
+            <Monitor className="h-4 w-4 mr-2" />
+            Modo Totem
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => navigate(`/service/${selectedServiceId}/checkins`)}
+          >
+            <History className="h-4 w-4 mr-2" />
+            Ver Histórico
+          </Button>
+        </div>
       )}
 
       {/* Check-in Methods */}
