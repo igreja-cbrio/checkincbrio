@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useServiceCheckIns, useServicesForHistory } from '@/hooks/useServiceCheckIns';
@@ -14,18 +14,18 @@ export default function ServiceCheckInHistoryPage() {
   const { isLeader } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>(paramServiceId || '');
 
+  // Sync URL param with state when navigating via URL
+  useEffect(() => {
+    if (paramServiceId && paramServiceId !== selectedServiceId) {
+      setSelectedServiceId(paramServiceId);
+    }
+  }, [paramServiceId]);
+
   const { data: services, isLoading: loadingServices } = useServicesForHistory(60);
-  const { data: checkInData, isLoading: loadingCheckIns } = useServiceCheckIns(
-    selectedServiceId || paramServiceId
-  );
+  const { data: checkInData, isLoading: loadingCheckIns } = useServiceCheckIns(selectedServiceId);
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
-  }
-
-  // Update selected service if URL param changes
-  if (paramServiceId && paramServiceId !== selectedServiceId) {
-    setSelectedServiceId(paramServiceId);
   }
 
   return (
