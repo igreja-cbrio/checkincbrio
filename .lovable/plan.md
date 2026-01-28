@@ -1,130 +1,154 @@
 
-
-# Plano: Correção da Sincronização com Planning Center
+# Plano: Histórico de Check-in por Culto + Correção da Sincronização
 
 ## Problema Identificado
 
-Alguns voluntários não estão sendo sincronizados do Planning Center para o sistema. Após análise, identifiquei **4 causas principais**:
+Analisando os logs e o banco de dados, identifiquei dois problemas principais:
 
-### 1. Falta de Paginação nos Team Members
-- A API do Planning Center tem limite máximo de 100 registros por página (`per_page=100`)
-- Se um plano tiver mais de 100 voluntários escalados, os registros além da página 1 não são sincronizados
-- A resposta da API inclui links de paginação (`links.next`) que não estão sendo processados
+### 1. Sincronização Incompleta
+"Dudu Bernardo" está escalado no Planning Center para "Quarta Com Deus" mas não aparece no sistema. A causa raiz é um **erro de duplicação durante o upsert**:
 
-### 2. Limite Muito Restritivo de Planos Futuros
-- Atualmente o código busca apenas 3 planos futuros por tipo de serviço
-- Isso pode excluir serviços programados para datas mais distantes
+```
+ON CONFLICT DO UPDATE command cannot affect row a second time
+```
 
-### 3. Processamento Incompleto de Voluntários
-- Status não incluídos no filtro podem estar sendo ignorados
-- Voluntários com status diferente de `C`, `U`, `D`, `S` não são processados
+**O que está acontecendo:**
+- Quando um voluntário tem múltiplas posições no mesmo culto (ex: "Baixo" + outro time), a API retorna múltiplos registros
+- O código atual faz deduplicação em memória, mas quando a escala já existe no banco de dados, o primeiro upsert atualiza a linha
+- Se o segundo registro tenta ser inserido na mesma transação batch, o PostgreSQL rejeita porque a linha já foi tocada
+- Isso faz com que toda a escala do culto falhe silenciosamente
 
-### 4. Log Insuficiente para Diagnóstico
-- Não há visibilidade sobre quantos voluntários foram encontrados vs quantos foram sincronizados
-- Difícil identificar onde ocorrem as perdas
+### 2. Falta de Histórico por Culto
+Atualmente o sistema tem histórico por voluntário, mas não há uma visão de "quem fez check-in em cada culto" para análise posterior.
 
 ---
 
 ## Solução Proposta
 
-### Mudanças nas Edge Functions
+### Parte 1: Correção da Sincronização
 
-**Arquivo: `supabase/functions/sync-planning-center/index.ts`**
-**Arquivo: `supabase/functions/sync-planning-center-auto/index.ts`**
+**Mudança na Edge Function `sync-planning-center/index.ts`:**
 
-1. **Implementar paginação completa para team members**
-   - Criar função auxiliar `fetchAllTeamMembers()` que:
-     - Faz requisição inicial com `per_page=100`
-     - Verifica se existe `links.next` na resposta
-     - Continua buscando páginas até não haver mais `next`
-     - Consolida todos os membros de todas as páginas
+1. **Coletar todos os membros antes de processar**
+   - Em vez de fazer upsert individual durante a iteração, acumular todos os registros
+   
+2. **Deduplicar corretamente antes do upsert**
+   - Usar Map com chave `${service_id}_${person_id}` para garantir unicidade
+   - Mesclar informações de múltiplas posições (concatenar team_names se necessário)
 
-2. **Aumentar limite de planos futuros**
-   - Alterar de 3 para 10 planos futuros por tipo de serviço
-   - Isso garante melhor cobertura de serviços agendados
+3. **Processar um por um com tratamento de erro individual**
+   - Fazer upserts individuais (não em batch) para evitar o erro 21000
+   - Se um falhar, continuar com os outros
+   - Logar erros específicos para diagnóstico
 
-3. **Remover filtro de status ou torná-lo mais permissivo**
-   - Aceitar qualquer status retornado pela API
-   - Mapear status desconhecidos para "unknown" em vez de ignorá-los
-   - Permitir inclusão de voluntários independente do status
+4. **Aplicar as mesmas correções na versão automática**
 
-4. **Adicionar logs detalhados**
-   - Logar total de membros encontrados por página
-   - Logar quantos voluntários foram processados vs ignorados
-   - Logar razão de exclusão (se aplicável)
+```text
+Fluxo Corrigido:
+1. Buscar team_members do plano (com paginação)
+2. Acumular TODOS em um Map (key = service_id + person_id)
+3. Para cada membro no Map:
+   ├── Tentar upsert individual
+   ├── Se sucesso: contabilizar
+   └── Se erro: logar e continuar
+4. Resultado: todos os voluntários únicos são salvos
+```
+
+### Parte 2: Histórico de Check-in por Culto
+
+**Criar nova página de detalhes do culto com lista de check-ins:**
+
+| Componente | Descrição |
+|------------|-----------|
+| `src/hooks/useServiceCheckIns.ts` | Hook para buscar todos os check-ins de um serviço específico |
+| `src/pages/ServiceCheckInHistoryPage.tsx` | Nova página mostrando lista de voluntários escalados e seus status de check-in |
+| `src/components/reports/ServiceCheckInList.tsx` | Componente que exibe a lista de check-ins com filtros |
+
+**Funcionalidades:**
+- Ver todos os escalados do culto
+- Ver quem fez check-in vs quem não fez
+- Filtrar por equipe (team)
+- Ver horário do check-in e método (QR/Manual/Facial)
+- Link do relatório "Por Culto" para esta página detalhada
+
+**Estrutura da página:**
+```text
+/service/:serviceId/checkins
+
+┌─────────────────────────────────────────┐
+│ Quarta Com Deus - 28/01 20:00           │
+│ 12/33 check-ins (36%)                   │
+├─────────────────────────────────────────┤
+│ [Filtro: Todas Equipes ▼]               │
+├─────────────────────────────────────────┤
+│ ✅ João Silva     - Vocal      - 19:45  │
+│ ✅ Maria Santos   - Baixo      - 19:50  │
+│ ⏳ Pedro Costa    - Teclado    - --:--  │
+│ ✅ Ana Oliveira   - Recepção   - 19:55  │
+│ ⏳ Dudu Bernardo  - Baixo      - --:--  │
+│ ...                                      │
+└─────────────────────────────────────────┘
+```
+
+---
+
+## Arquivos a Criar/Modificar
+
+| Tipo | Arquivo | Alteração |
+|------|---------|-----------|
+| Modificar | `supabase/functions/sync-planning-center/index.ts` | Corrigir lógica de upsert |
+| Modificar | `supabase/functions/sync-planning-center-auto/index.ts` | Aplicar mesmas correções |
+| Criar | `src/hooks/useServiceCheckIns.ts` | Hook para buscar check-ins por serviço |
+| Criar | `src/pages/ServiceCheckInHistoryPage.tsx` | Página de histórico de check-ins do culto |
+| Criar | `src/components/reports/ServiceCheckInList.tsx` | Componente de lista |
+| Modificar | `src/App.tsx` | Adicionar nova rota |
+| Modificar | `src/pages/ReportsPage.tsx` | Adicionar link para página de detalhes do culto |
+| Modificar | `src/pages/CheckinPage.tsx` | Adicionar link para ver histórico do culto selecionado |
 
 ---
 
 ## Detalhes Técnicos
 
-### Função de Paginação
+### Hook useServiceCheckIns
 
 ```text
-fetchAllTeamMembers(serviceTypeId, planId)
-  ├── Buscar página 1 com per_page=100
-  ├── Acumular membros em array
-  ├── Verificar se existe meta.next ou links.next
-  ├── Se existir, buscar próxima página (usando offset)
-  ├── Repetir até não haver mais páginas
-  └── Retornar array completo de membros + included persons
+useServiceCheckIns(serviceId: string)
+  ├── Buscar service (nome, data)
+  ├── Buscar todos os schedules do service
+  │   ├── volunteer_name
+  │   ├── team_name
+  │   ├── confirmation_status
+  │   └── check_in (se existe)
+  └── Retornar lista ordenada por team_name, depois nome
 ```
 
-### Estrutura de Resposta Planning Center (JSON-API)
+### Estrutura de Dados
+
 ```text
-{
-  "data": [...team_members...],
-  "included": [...person_data...],
-  "meta": {
-    "total_count": 150,
-    "count": 100
-  },
-  "links": {
-    "self": "...",
-    "next": "...?offset=100"
-  }
+ServiceCheckInItem {
+  scheduleId: string
+  volunteerName: string
+  teamName: string | null
+  confirmationStatus: string
+  checkedIn: boolean
+  checkInTime: string | null
+  checkInMethod: 'qr_code' | 'manual' | 'facial' | null
+}
+
+ServiceCheckInSummary {
+  serviceName: string
+  scheduledAt: string
+  totalScheduled: number
+  totalCheckedIn: number
+  attendanceRate: number
+  items: ServiceCheckInItem[]
 }
 ```
-
-### Cálculo de Paginação
-- Usar `offset` incrementando de 100 em 100
-- Continuar enquanto `data.length > 0` ou enquanto existir `links.next`
-
----
-
-## Fluxo de Sincronização Atualizado
-
-```text
-1. Buscar service_types
-2. Para cada service_type:
-   ├── Buscar até 10 planos futuros (per_page=10)
-   └── Para cada plano:
-       ├── Upsert serviço no banco
-       ├── Buscar TODOS os team_members (com paginação)
-       │   ├── Página 1: offset=0
-       │   ├── Página 2: offset=100
-       │   └── ... continua até não haver mais
-       ├── Processar TODOS os membros (sem filtro de status)
-       ├── Upsert schedules
-       └── Coletar voluntários para QR codes
-3. Gerar QR codes para todos voluntários coletados
-4. Registrar log com totais detalhados
-```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/sync-planning-center/index.ts` | Adicionar paginação, aumentar limite de planos, melhorar logs |
-| `supabase/functions/sync-planning-center-auto/index.ts` | Mesmas alterações para manter consistência |
 
 ---
 
 ## Resultado Esperado
 
-- Todos os voluntários de todos os planos serão sincronizados
-- Maior cobertura de serviços futuros (10 em vez de 3)
-- Logs detalhados para diagnóstico de problemas
-- Nenhum voluntário será perdido por limite de paginação
-
+1. **Sincronização**: Todos os voluntários escalados no Planning Center aparecerão corretamente no sistema, independente de quantas posições tenham
+2. **Histórico por Culto**: Líderes poderão acessar uma visão detalhada de cada culto para análise de presença
+3. **Navegação**: Links do relatório "Por Culto" e da página de Check-in levarão à nova página de histórico
