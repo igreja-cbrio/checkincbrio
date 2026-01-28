@@ -135,19 +135,29 @@ export default function CheckinPage() {
           <h1 className="text-2xl font-bold">Check-in</h1>
           <p className="text-sm text-muted-foreground">Registre a presença</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleSync}
-          disabled={syncMutation.isPending}
-        >
-          {syncMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          <span className="ml-2">Sincronizar</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate('/service-history')}
+          >
+            <History className="h-4 w-4" />
+            <span className="ml-2 hidden sm:inline">Histórico</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleSync}
+            disabled={syncMutation.isPending}
+          >
+            {syncMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="ml-2 hidden sm:inline">Sincronizar</span>
+          </Button>
+        </div>
       </div>
 
       {/* Service Selector */}
