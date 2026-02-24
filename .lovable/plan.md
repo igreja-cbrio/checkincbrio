@@ -1,62 +1,97 @@
 
 
-# Plano: Correção do Histórico de Culto
+# Plano: Melhorar Sincronização com Planning Center
 
-## Problemas Identificados
+## Problema
 
-### Problema 1: Seletor de culto "travado" no culto de hoje
-Ao trocar o culto no seletor da página `/service-history`, a seleção não atualiza corretamente. A página continua mostrando os dados do primeiro culto selecionado.
+Pessoas que aparecem na escala do Planning Center não estão aparecendo no sistema. Após análise detalhada do código, identifiquei 4 causas potenciais:
 
-**Causa raiz:** Há um bug no componente `ServiceCheckInHistoryPage.tsx` nas linhas 27-29:
-```javascript
-// Este código causa update durante render - anti-pattern React
-if (paramServiceId && paramServiceId !== selectedServiceId) {
-  setSelectedServiceId(paramServiceId);
-}
-```
+### Causa 1: Deduplicação incorreta de voluntários com múltiplas posições
+Quando um voluntário tem múltiplas posições no mesmo culto (ex: "Vocal" + "Backing Vocal"), o código atual mantém apenas a **primeira** entrada encontrada. Se a primeira entrada tem status "D" (recusado), o voluntário fica registrado como "declined" e as outras posições com status "C" (confirmado) são descartadas.
 
-Este padrão de atualização de estado durante a renderização pode causar comportamento inesperado. Além disso, quando o usuário muda a seleção manualmente, o `paramServiceId` da URL não muda, mas o código tenta sincronizar de forma incorreta.
+### Causa 2: Falta de busca por planos recentes/passados
+O código usa `filter=future`, que pode não incluir planos de hoje dependendo do fuso horário do servidor. Cultos que acontecem hoje podem não ser sincronizados.
 
-### Problema 2: Botão de histórico não aparece na tela principal de check-in
-O botão "Ver Histórico" existe em `CheckinPage.tsx` (linhas 209-217), mas está dentro do bloco condicional que só aparece quando um culto está selecionado:
-```javascript
-{selectedServiceId && (
-  <div className="flex flex-col sm:flex-row gap-2">
-    <Button ... >Modo Totem</Button>
-    <Button ... >Ver Histórico</Button>  // Só visível após selecionar culto
-  </div>
-)}
-```
+### Causa 3: Sem retry em caso de falha de API
+Se uma chamada à API do Planning Center falhar por timeout ou rate limiting, todo o plano é ignorado silenciosamente.
 
-O usuário quer que o botão de histórico esteja sempre visível para navegar à página `/service-history` mesmo sem selecionar um culto.
+### Causa 4: Nome do voluntário pode ser null
+Se `member.attributes.name` for `null` ou vazio, o registro pode falhar no banco por violar `NOT NULL`.
 
 ---
 
 ## Solução Proposta
 
-### Correção 1: Página de Histórico de Culto
+### Mudanças nas Edge Functions (ambas: manual e automática)
 
-Reescrever a lógica de estado em `ServiceCheckInHistoryPage.tsx`:
+1. **Deduplicação inteligente com prioridade de status**
+   - Quando um voluntário aparece múltiplas vezes, manter o status mais relevante (confirmado > escalado > pendente > recusado)
+   - Concatenar os nomes das equipes (ex: "Vocal, Backing Vocal") para mostrar todas as posições
 
-1. Usar `useEffect` para sincronizar o parâmetro da URL com o estado
-2. Garantir que a mudança no Select atualize corretamente o estado
-3. Evitar atualizações de estado durante o render
+2. **Buscar planos passados recentes + futuros**
+   - Além de `filter=future`, buscar também planos dos últimos 7 dias com `filter=past`
+   - Isso garante que cultos de hoje e da semana passada sejam sincronizados
 
-**Lógica corrigida:**
+3. **Retry automático com backoff**
+   - Adicionar lógica de retry (até 3 tentativas) para chamadas à API do Planning Center
+   - Esperar 1s, 2s, 4s entre tentativas
+
+4. **Logs detalhados por pessoa**
+   - Logar cada voluntário processado com nome e status para facilitar debug
+   - Ao final, logar a lista completa de nomes sincronizados por culto
+
+5. **Tratamento de dados nulos**
+   - Usar fallback para nome: `member.attributes.name || personData?.attributes?.first_name + ' ' + personData?.attributes?.last_name || 'Sem nome'`
+
+---
+
+## Detalhes Técnicos
+
+### Nova lógica de deduplicação
+
 ```text
-1. Inicializar selectedServiceId com paramServiceId (se existir)
-2. useEffect para sincronizar quando paramServiceId mudar (navegação por URL)
-3. onValueChange no Select atualiza selectedServiceId normalmente
-4. React Query refaz a busca quando selectedServiceId muda
+Prioridade de status (maior = prevalece):
+  confirmed (C) = 4
+  scheduled (S) = 3
+  pending (U/P/N) = 2
+  unknown = 1
+  declined (D) = 0
+
+Quando duplicata encontrada:
+  Se novo status > status existente:
+    Atualizar status
+  Sempre:
+    Adicionar team_name à lista de equipes
 ```
 
-### Correção 2: Botão de Histórico no Check-in
+### Nova lógica de busca de planos
 
-Mover o botão de histórico para fora do bloco condicional em `CheckinPage.tsx`:
+```text
+Antes:
+  GET /plans?filter=future&per_page=10
 
-1. Adicionar um botão "Histórico de Cultos" na área do header, ao lado do botão "Sincronizar"
-2. Este botão navega para `/service-history` sem precisar selecionar um culto antes
-3. O comportamento atual do botão contextual permanece (quando culto selecionado, vai direto para o histórico daquele culto)
+Depois:
+  GET /plans?filter=future&per_page=10      (planos futuros)
+  GET /plans?filter=past&per_page=5          (planos recentes)
+  Combinar e deduplicar por plan.id
+```
+
+### Retry com backoff
+
+```text
+async function fetchWithRetry(url, headers, maxRetries = 3):
+  for attempt = 1 to maxRetries:
+    response = await fetch(url, headers)
+    if response.ok:
+      return response
+    if response.status == 429 (rate limit):
+      wait 2^attempt seconds
+    else if response.status >= 500:
+      wait attempt seconds
+    else:
+      break (client error, don't retry)
+  return last response
+```
 
 ---
 
@@ -64,48 +99,15 @@ Mover o botão de histórico para fora do bloco condicional em `CheckinPage.tsx`
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/pages/ServiceCheckInHistoryPage.tsx` | Corrigir lógica de seleção usando useEffect |
-| `src/pages/CheckinPage.tsx` | Adicionar botão de histórico visível sempre |
-
----
-
-## Detalhes Técnicos
-
-### ServiceCheckInHistoryPage.tsx - Código Corrigido
-
-```text
-Antes:
-- useState com paramServiceId inicial
-- Condicional durante render para sincronizar
-
-Depois:
-- useState com paramServiceId inicial
-- useEffect(() => { ... }, [paramServiceId]) para sincronizar
-- onValueChange funciona normalmente
-```
-
-### CheckinPage.tsx - Novo Botão
-
-Adicionar um botão de acesso ao histórico na barra superior, junto ao botão de sincronização:
-
-```text
-Layout atual:
-┌────────────────────────────────────────┐
-│ Check-in           [Sincronizar]       │
-│ Registre a presença                    │
-├────────────────────────────────────────┤
-
-Layout proposto:
-┌────────────────────────────────────────┐
-│ Check-in      [Histórico] [Sincronizar]│
-│ Registre a presença                    │
-├────────────────────────────────────────┤
-```
+| `supabase/functions/sync-planning-center/index.ts` | Todas as melhorias acima |
+| `supabase/functions/sync-planning-center-auto/index.ts` | Mesmas melhorias |
 
 ---
 
 ## Resultado Esperado
 
-1. **Seletor de culto funcional:** Ao trocar o culto no dropdown, os dados serão recarregados corretamente para o novo culto selecionado
-2. **Acesso rápido ao histórico:** Botão sempre visível na tela de check-in para navegar diretamente à página de histórico de cultos
+1. Voluntários com múltiplas posições aparecem com o status correto (confirmado prevalece sobre recusado)
+2. Cultos de hoje e da última semana são sempre incluídos na sincronização
+3. Falhas temporárias de API não causam perda de dados
+4. Logs detalhados permitem identificar exatamente quem está sendo sincronizado ou não
 
