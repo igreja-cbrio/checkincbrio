@@ -19,6 +19,56 @@ interface TeamMemberResponse {
   meta?: { total_count?: number };
 }
 
+// Status priority: higher = takes precedence
+const STATUS_PRIORITY: Record<string, number> = {
+  'confirmed': 4,
+  'scheduled': 3,
+  'pending': 2,
+  'unknown': 1,
+  'declined': 0,
+};
+
+const STATUS_MAP: Record<string, string> = {
+  'C': 'confirmed',
+  'U': 'pending',
+  'D': 'declined',
+  'S': 'scheduled',
+  'P': 'pending',
+  'N': 'pending',
+};
+
+// Retry with exponential backoff
+async function fetchWithRetry(
+  url: string,
+  headers: Record<string, string>,
+  maxRetries = 3
+): Promise<Response> {
+  let lastResponse: Response | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, { headers });
+    lastResponse = response;
+
+    if (response.ok) return response;
+
+    if (response.status === 429) {
+      const wait = Math.pow(2, attempt) * 1000;
+      console.warn(`[Retry] Rate limited (429), waiting ${wait}ms (attempt ${attempt}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, wait));
+    } else if (response.status >= 500) {
+      const wait = attempt * 1000;
+      console.warn(`[Retry] Server error (${response.status}), waiting ${wait}ms (attempt ${attempt}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, wait));
+    } else {
+      // Client error (4xx), don't retry
+      console.error(`[Retry] Client error (${response.status}), not retrying`);
+      break;
+    }
+  }
+
+  return lastResponse!;
+}
+
 // Helper function to fetch ALL team members with pagination
 async function fetchAllTeamMembers(
   baseUrl: string,
@@ -37,10 +87,8 @@ async function fetchAllTeamMembers(
 
   while (true) {
     const url = `${baseUrl}/service_types/${serviceTypeId}/plans/${planId}/team_members?per_page=${perPage}&offset=${offset}&include=person`;
-    
-    const response = await fetch(url, {
-      headers: { 'Authorization': `Basic ${credentials}` }
-    });
+
+    const response = await fetchWithRetry(url, { 'Authorization': `Basic ${credentials}` });
 
     if (!response.ok) {
       console.error(`[Pagination] Error fetching page at offset ${offset}: ${response.status}`);
@@ -49,43 +97,84 @@ async function fetchAllTeamMembers(
 
     const data: TeamMemberResponse = await response.json();
     pageCount++;
-    
+
     const membersInPage = data.data?.length || 0;
     console.log(`[Pagination] Page ${pageCount}: fetched ${membersInPage} members (offset: ${offset})`);
-    
+
     if (data.meta?.total_count && totalCount === 0) {
       totalCount = data.meta.total_count;
       console.log(`[Pagination] Total members reported by API: ${totalCount}`);
     }
 
-    if (data.data) {
-      allMembers.push(...data.data);
-    }
-    
-    if (data.included) {
-      allIncluded.push(...data.included);
-    }
+    if (data.data) allMembers.push(...data.data);
+    if (data.included) allIncluded.push(...data.included);
 
-    // Check if there are more pages
     if (!data.data || data.data.length < perPage) {
       console.log(`[Pagination] Finished: retrieved ${allMembers.length} total members in ${pageCount} pages`);
       break;
     }
 
     offset += perPage;
-    
-    // Safety limit to prevent infinite loops
+
     if (pageCount >= 50) {
       console.warn(`[Pagination] Safety limit reached at 50 pages (${allMembers.length} members)`);
       break;
     }
   }
 
-  return {
-    data: allMembers,
-    included: allIncluded,
-    meta: { total_count: allMembers.length }
-  };
+  return { data: allMembers, included: allIncluded, meta: { total_count: allMembers.length } };
+}
+
+// Fetch future + recent past plans, deduplicated
+async function fetchAllPlans(
+  baseUrl: string,
+  serviceTypeId: string,
+  credentials: string
+): Promise<any[]> {
+  const headers = { 'Authorization': `Basic ${credentials}` };
+  const planMap = new Map<string, any>();
+
+  // Fetch future plans
+  const futureRes = await fetchWithRetry(
+    `${baseUrl}/service_types/${serviceTypeId}/plans?filter=future&per_page=10`,
+    headers
+  );
+  if (futureRes.ok) {
+    const data = await futureRes.json();
+    for (const plan of data.data || []) planMap.set(plan.id, plan);
+    console.log(`[Plans] Future plans: ${data.data?.length || 0}`);
+  }
+
+  // Fetch recent past plans (last 7 days)
+  const pastRes = await fetchWithRetry(
+    `${baseUrl}/service_types/${serviceTypeId}/plans?filter=past&per_page=5&order=-sort_date`,
+    headers
+  );
+  if (pastRes.ok) {
+    const data = await pastRes.json();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    for (const plan of data.data || []) {
+      const planDate = new Date(plan.attributes.sort_date);
+      if (planDate >= sevenDaysAgo) {
+        planMap.set(plan.id, plan);
+      }
+    }
+    console.log(`[Plans] Past plans (last 7 days): ${data.data?.length || 0} fetched, ${planMap.size} total after dedup`);
+  }
+
+  return Array.from(planMap.values());
+}
+
+// Get volunteer name with fallbacks
+function getVolunteerName(member: any, personData: any): string {
+  if (member.attributes.name) return member.attributes.name;
+  if (personData?.attributes) {
+    const first = personData.attributes.first_name || '';
+    const last = personData.attributes.last_name || '';
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+  }
+  return 'Sem nome';
 }
 
 serve(async (req) => {
@@ -96,15 +185,14 @@ serve(async (req) => {
   console.log('Starting automatic Planning Center sync...');
 
   try {
-    // Verify authorization - accept CRON_SECRET or ANON_KEY for cron calls
     const authHeader = req.headers.get('Authorization');
     const cronSecret = Deno.env.get('CRON_SECRET');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    
+
     const token = authHeader?.replace('Bearer ', '');
     const isValidCronSecret = cronSecret && token === cronSecret;
     const isValidAnonKey = anonKey && token === anonKey;
-    
+
     if (!isValidCronSecret && !isValidAnonKey) {
       console.error('Invalid or missing authorization');
       return new Response(
@@ -112,10 +200,9 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     console.log('Authorization validated, source:', isValidCronSecret ? 'CRON_SECRET' : 'ANON_KEY');
 
-    // Create service role client for database operations
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -126,32 +213,20 @@ serve(async (req) => {
 
     if (!appId || !secret) {
       console.error('Missing Planning Center credentials');
-      return new Response(JSON.stringify({ 
-        error: 'Planning Center credentials not configured'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      return new Response(JSON.stringify({ error: 'Planning Center credentials not configured' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
-
-    console.log('Credentials found, connecting to Planning Center API...');
 
     const credentials = btoa(`${appId}:${secret}`);
     const baseUrl = 'https://api.planningcenteronline.com/services/v2';
 
-    // Test connection first
-    const testRes = await fetch(`${baseUrl}/service_types`, {
-      headers: { 'Authorization': `Basic ${credentials}` }
-    });
+    const testRes = await fetchWithRetry(`${baseUrl}/service_types`, { 'Authorization': `Basic ${credentials}` });
 
     if (!testRes.ok) {
-      const errorText = await testRes.text();
-      console.error('Planning Center API error:', testRes.status, errorText);
-      return new Response(JSON.stringify({ 
-        error: 'Failed to connect to Planning Center'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      console.error('Planning Center API error:', testRes.status);
+      return new Response(JSON.stringify({ error: 'Failed to connect to Planning Center' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -164,35 +239,22 @@ serve(async (req) => {
     let totalMembersProcessed = 0;
     const allVolunteers = new Map<string, VolunteerQrCode>();
 
-    // Process service types
     const processServiceType = async (serviceType: any) => {
       let typeServices = 0;
       let typeSchedules = 0;
       let typeMembersFound = 0;
       let typeMembersProcessed = 0;
-      
+
       console.log(`\n=== Processing service type: ${serviceType.attributes.name} ===`);
-      
-      // Fetch next 10 upcoming plans (increased from 3)
-      const plansRes = await fetch(
-        `${baseUrl}/service_types/${serviceType.id}/plans?filter=future&per_page=10`,
-        { headers: { 'Authorization': `Basic ${credentials}` } }
-      );
 
-      if (!plansRes.ok) {
-        console.error(`Error fetching plans for ${serviceType.attributes.name}`);
-        return { services: 0, schedules: 0, membersFound: 0, membersProcessed: 0 };
-      }
+      // Fetch future + past plans
+      const plans = await fetchAllPlans(baseUrl, serviceType.id, credentials);
+      console.log(`Total plans to process for ${serviceType.attributes.name}: ${plans.length}`);
 
-      const plansData = await plansRes.json();
-      console.log(`Found ${plansData.data?.length || 0} future plans for ${serviceType.attributes.name}`);
-
-      // Process plans sequentially
-      for (const plan of plansData.data || []) {
+      for (const plan of plans) {
         const serviceDate = plan.attributes.sort_date;
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
-        // Upsert service
         const { data: service, error: serviceError } = await supabaseClient
           .from('services')
           .upsert({
@@ -212,88 +274,90 @@ serve(async (req) => {
         typeServices++;
         console.log(`\nSyncing service: ${serviceName} on ${serviceDate} (Plan ID: ${plan.id})`);
 
-        // Fetch ALL team members with pagination
         const teamData = await fetchAllTeamMembers(baseUrl, serviceType.id, plan.id, credentials);
-        
         typeMembersFound += teamData.data.length;
-        console.log(`[Stats] Total team members found for this plan: ${teamData.data.length}`);
 
-        // Create person map from includes
         const personMap = new Map<string, any>();
         if (teamData.included) {
           for (const item of teamData.included) {
-            if (item.type === 'Person') {
-              personMap.set(item.id, item);
-            }
+            if (item.type === 'Person') personMap.set(item.id, item);
           }
         }
 
-        // Deduplicate schedules by person within each service - process ALL members
+        // Smart deduplication with status priority
         const scheduleMap = new Map<string, any>();
+        const teamNamesMap = new Map<string, Set<string>>();
         const statusCounts: Record<string, number> = {};
-        
+        const syncedNames: string[] = [];
+
         for (const member of teamData.data || []) {
           const memberStatus = member.attributes.status || 'unknown';
-          
-          // Count statuses for logging
           statusCounts[memberStatus] = (statusCounts[memberStatus] || 0) + 1;
 
           const personId = member.relationships?.person?.data?.id || member.id;
-          
-          // Map ALL statuses - not just C, U, D, S
-          const statusMap: Record<string, string> = { 
-            'C': 'confirmed', 
-            'U': 'pending', 
-            'D': 'declined', 
-            'S': 'scheduled',
-            'P': 'pending',  // Potentially confirmed
-            'N': 'pending',  // Not yet responded
-          };
-          const confirmationStatus = statusMap[memberStatus] || 'unknown';
-          
+          const confirmationStatus = STATUS_MAP[memberStatus] || 'unknown';
+
           const teamPosition = member.attributes.team_position_name || '';
           const parts = teamPosition.split(' - ');
+          const teamName = parts[0] || null;
 
           const personData = personMap.get(personId);
           const avatarUrl = personData?.attributes?.avatar || member.attributes?.photo_thumbnail || null;
+          const volunteerName = getVolunteerName(member, personData);
 
-          // Use Map to deduplicate by personId within the same service
           const key = `${service.id}_${personId}`;
+
           if (!scheduleMap.has(key)) {
+            // First occurrence
             scheduleMap.set(key, {
               service_id: service.id,
               planning_center_person_id: personId,
-              volunteer_name: member.attributes.name,
-              team_name: parts[0] || null,
+              volunteer_name: volunteerName,
+              team_name: teamName,
               position_name: parts[1] || null,
               confirmation_status: confirmationStatus,
             });
+            teamNamesMap.set(key, new Set(teamName ? [teamName] : []));
             typeMembersProcessed++;
+            syncedNames.push(`${volunteerName} (${confirmationStatus})`);
+          } else {
+            // Duplicate: update status if higher priority, merge team names
+            const existing = scheduleMap.get(key);
+            const existingPriority = STATUS_PRIORITY[existing.confirmation_status] ?? 1;
+            const newPriority = STATUS_PRIORITY[confirmationStatus] ?? 1;
+
+            if (newPriority > existingPriority) {
+              existing.confirmation_status = confirmationStatus;
+              console.log(`[Dedup] ${volunteerName}: upgraded status from ${existing.confirmation_status} to ${confirmationStatus}`);
+            }
+
+            // Merge team names
+            const teams = teamNamesMap.get(key)!;
+            if (teamName && !teams.has(teamName)) {
+              teams.add(teamName);
+              existing.team_name = Array.from(teams).join(', ');
+            }
           }
 
-          // Collect volunteer for QR code
-          if (personId && member.attributes.name) {
+          if (personId && volunteerName !== 'Sem nome') {
             allVolunteers.set(personId, {
               planning_center_person_id: personId,
-              volunteer_name: member.attributes.name,
+              volunteer_name: volunteerName,
               avatar_url: avatarUrl,
             });
           }
         }
 
-        // Log status distribution
         console.log(`[Stats] Status distribution: ${JSON.stringify(statusCounts)}`);
         console.log(`[Stats] Unique volunteers for this plan: ${scheduleMap.size}`);
+        console.log(`[Names] Synced: ${syncedNames.join(', ')}`);
 
-        // Upsert deduplicated schedules one by one to avoid conflicts
         const schedulesToUpsert = Array.from(scheduleMap.values());
         for (const schedule of schedulesToUpsert) {
           const { error: upsertError } = await supabaseClient
             .from('schedules')
-            .upsert(schedule, { 
-              onConflict: 'service_id,planning_center_person_id',
-            });
-          
+            .upsert(schedule, { onConflict: 'service_id,planning_center_person_id' });
+
           if (!upsertError) {
             typeSchedules++;
           } else {
@@ -306,22 +370,16 @@ serve(async (req) => {
       console.log(`Services: ${typeServices}, Schedules: ${typeSchedules}`);
       console.log(`Members found: ${typeMembersFound}, Processed: ${typeMembersProcessed}`);
 
-      return { 
-        services: typeServices, 
-        schedules: typeSchedules,
-        membersFound: typeMembersFound,
-        membersProcessed: typeMembersProcessed
-      };
+      return { services: typeServices, schedules: typeSchedules, membersFound: typeMembersFound, membersProcessed: typeMembersProcessed };
     };
 
-    // Process all service types in batches of 5
     const serviceTypes = typesData.data || [];
     const batchSize = 5;
-    
+
     for (let i = 0; i < serviceTypes.length; i += batchSize) {
       const batch = serviceTypes.slice(i, i + batchSize);
       const results = await Promise.all(batch.map(processServiceType));
-      
+
       for (const result of results) {
         totalServices += result.services;
         totalSchedules += result.schedules;
@@ -339,45 +397,35 @@ serve(async (req) => {
     console.log(`Unique volunteers: ${allVolunteers.size}`);
     console.log(`========================================\n`);
 
-    // Generate QR codes for volunteers
     const volunteerQrCodes = Array.from(allVolunteers.values());
     let avatarsImported = 0;
-    
+
     if (volunteerQrCodes.length > 0) {
       console.log(`Generating QR codes for ${volunteerQrCodes.length} volunteers...`);
       avatarsImported = volunteerQrCodes.filter(v => v.avatar_url).length;
-      
-      const batchSize = 100;
-      for (let i = 0; i < volunteerQrCodes.length; i += batchSize) {
-        const batch = volunteerQrCodes.slice(i, i + batchSize);
-        
+
+      const qrBatchSize = 100;
+      for (let i = 0; i < volunteerQrCodes.length; i += qrBatchSize) {
+        const batch = volunteerQrCodes.slice(i, i + qrBatchSize);
         const { error: qrError } = await supabaseClient
           .from('volunteer_qrcodes')
-          .upsert(batch, { 
-            onConflict: 'planning_center_person_id',
-            ignoreDuplicates: false
-          });
-        
-        if (qrError) {
-          console.error('Error upserting volunteer QR codes:', qrError);
-        }
+          .upsert(batch, { onConflict: 'planning_center_person_id', ignoreDuplicates: false });
+
+        if (qrError) console.error('Error upserting volunteer QR codes:', qrError);
       }
       console.log(`QR codes generated for ${volunteerQrCodes.length} volunteers`);
     }
 
-    // Log successful sync
-    await supabaseClient
-      .from('sync_logs')
-      .insert({
-        sync_type: 'automatic',
-        services_synced: totalServices,
-        schedules_synced: totalSchedules,
-        qrcodes_generated: volunteerQrCodes.length,
-        status: 'success',
-      });
+    await supabaseClient.from('sync_logs').insert({
+      sync_type: 'automatic',
+      services_synced: totalServices,
+      schedules_synced: totalSchedules,
+      qrcodes_generated: volunteerQrCodes.length,
+      status: 'success',
+    });
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
       services: totalServices,
       schedules: totalSchedules,
       qrCodesGenerated: volunteerQrCodes.length,
@@ -385,16 +433,13 @@ serve(async (req) => {
       totalMembersFound,
       totalMembersProcessed,
       timestamp: new Date().toISOString()
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Auto sync error:', message);
     return new Response(JSON.stringify({ error: 'An error occurred during sync' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
