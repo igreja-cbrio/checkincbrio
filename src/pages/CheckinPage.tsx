@@ -304,6 +304,8 @@ export default function CheckinPage() {
         volunteerName={unscheduledDialog.result?.volunteerName || ''}
         onConfirm={handleConfirmUnscheduledCheckIn}
         isProcessing={checkInMutation.isPending}
+        printLabelChecked={printLabelChecked}
+        onPrintLabelChange={setPrintLabelChecked}
       />
     </div>
   );
