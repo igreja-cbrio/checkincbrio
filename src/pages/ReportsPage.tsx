@@ -8,13 +8,14 @@ import { useAttendanceReport, useServiceReport, ReportPeriod } from '@/hooks/use
 import { useUnscheduledReport, UnscheduledPeriod } from '@/hooks/useUnscheduledReport';
 import { useWeeklyReport, WeeklyPeriod } from '@/hooks/useWeeklyReport';
 import { useTeams } from '@/hooks/useTeams';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WeeklyReportCard } from '@/components/reports/WeeklyReportCard';
 import { ReportPrintButton } from '@/components/reports/ReportPrintButton';
 import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
+import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
@@ -131,6 +132,10 @@ export default function ReportsPage() {
             <TabsList>
               <TabsTrigger value="weekly">Relatório Semanal</TabsTrigger>
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="inactive">
+                <UserX className="h-4 w-4 mr-1" />
+                Inativos
+              </TabsTrigger>
             </TabsList>
 
             {activeTab === 'weekly' ? (
@@ -332,6 +337,11 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Inactive Volunteers Tab */}
+          <TabsContent value="inactive" className="mt-0">
+            <InactiveVolunteersTab teamFilter={teamFilter} />
           </TabsContent>
         </Tabs>
       )}
