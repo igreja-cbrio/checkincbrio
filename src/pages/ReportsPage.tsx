@@ -338,6 +338,11 @@ export default function ReportsPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* Inactive Volunteers Tab */}
+          <TabsContent value="inactive" className="mt-0">
+            <InactiveVolunteersTab teamFilter={teamFilter} />
+          </TabsContent>
         </Tabs>
       )}
     </div>
