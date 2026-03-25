@@ -215,6 +215,44 @@ export type Database = {
         }
         Relationships: []
       }
+      training_checkins: {
+        Row: {
+          created_at: string
+          id: string
+          phone: string | null
+          registered_by: string | null
+          service_id: string | null
+          team_name: string
+          volunteer_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          phone?: string | null
+          registered_by?: string | null
+          service_id?: string | null
+          team_name: string
+          volunteer_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          phone?: string | null
+          registered_by?: string | null
+          service_id?: string | null
+          team_name?: string
+          volunteer_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_checkins_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
