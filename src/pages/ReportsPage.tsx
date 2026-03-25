@@ -15,6 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { WeeklyReportCard } from '@/components/reports/WeeklyReportCard';
 import { ReportPrintButton } from '@/components/reports/ReportPrintButton';
 import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
+import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
