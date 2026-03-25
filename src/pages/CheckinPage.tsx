@@ -28,6 +28,7 @@ export default function CheckinPage() {
     open: boolean;
     result: QrCodeResult | null;
   }>({ open: false, result: null });
+  const [printLabelChecked, setPrintLabelChecked] = useState(true);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
