@@ -1,113 +1,60 @@
 
 
-# Plano: Melhorar Sincronização com Planning Center
+# Plano: Relatório de Voluntários Inativos
 
-## Problema
+## Objetivo
 
-Pessoas que aparecem na escala do Planning Center não estão aparecendo no sistema. Após análise detalhada do código, identifiquei 4 causas potenciais:
+Criar uma nova aba na página de Relatórios que liste voluntários que não servem há um determinado período (ex: 2, 3, 4, 6 meses), permitindo ao líder identificar quem está afastado.
 
-### Causa 1: Deduplicação incorreta de voluntários com múltiplas posições
-Quando um voluntário tem múltiplas posições no mesmo culto (ex: "Vocal" + "Backing Vocal"), o código atual mantém apenas a **primeira** entrada encontrada. Se a primeira entrada tem status "D" (recusado), o voluntário fica registrado como "declined" e as outras posições com status "C" (confirmado) são descartadas.
+## Como Funciona
 
-### Causa 2: Falta de busca por planos recentes/passados
-O código usa `filter=future`, que pode não incluir planos de hoje dependendo do fuso horário do servidor. Cultos que acontecem hoje podem não ser sincronizados.
+A funcionalidade cruza os dados de `schedules` + `check_ins` para encontrar voluntários que têm registros no Planning Center mas cujo último check-in (ou última escala) foi há mais de X meses. O líder escolhe o período de inatividade desejado via um seletor.
 
-### Causa 3: Sem retry em caso de falha de API
-Se uma chamada à API do Planning Center falhar por timeout ou rate limiting, todo o plano é ignorado silenciosamente.
-
-### Causa 4: Nome do voluntário pode ser null
-Se `member.attributes.name` for `null` ou vazio, o registro pode falhar no banco por violar `NOT NULL`.
-
----
-
-## Solução Proposta
-
-### Mudanças nas Edge Functions (ambas: manual e automática)
-
-1. **Deduplicação inteligente com prioridade de status**
-   - Quando um voluntário aparece múltiplas vezes, manter o status mais relevante (confirmado > escalado > pendente > recusado)
-   - Concatenar os nomes das equipes (ex: "Vocal, Backing Vocal") para mostrar todas as posições
-
-2. **Buscar planos passados recentes + futuros**
-   - Além de `filter=future`, buscar também planos dos últimos 7 dias com `filter=past`
-   - Isso garante que cultos de hoje e da semana passada sejam sincronizados
-
-3. **Retry automático com backoff**
-   - Adicionar lógica de retry (até 3 tentativas) para chamadas à API do Planning Center
-   - Esperar 1s, 2s, 4s entre tentativas
-
-4. **Logs detalhados por pessoa**
-   - Logar cada voluntário processado com nome e status para facilitar debug
-   - Ao final, logar a lista completa de nomes sincronizados por culto
-
-5. **Tratamento de dados nulos**
-   - Usar fallback para nome: `member.attributes.name || personData?.attributes?.first_name + ' ' + personData?.attributes?.last_name || 'Sem nome'`
-
----
-
-## Detalhes Técnicos
-
-### Nova lógica de deduplicação
-
-```text
-Prioridade de status (maior = prevalece):
-  confirmed (C) = 4
-  scheduled (S) = 3
-  pending (U/P/N) = 2
-  unknown = 1
-  declined (D) = 0
-
-Quando duplicata encontrada:
-  Se novo status > status existente:
-    Atualizar status
-  Sempre:
-    Adicionar team_name à lista de equipes
-```
-
-### Nova lógica de busca de planos
-
-```text
-Antes:
-  GET /plans?filter=future&per_page=10
-
-Depois:
-  GET /plans?filter=future&per_page=10      (planos futuros)
-  GET /plans?filter=past&per_page=5          (planos recentes)
-  Combinar e deduplicar por plan.id
-```
-
-### Retry com backoff
-
-```text
-async function fetchWithRetry(url, headers, maxRetries = 3):
-  for attempt = 1 to maxRetries:
-    response = await fetch(url, headers)
-    if response.ok:
-      return response
-    if response.status == 429 (rate limit):
-      wait 2^attempt seconds
-    else if response.status >= 500:
-      wait attempt seconds
-    else:
-      break (client error, don't retry)
-  return last response
-```
-
----
-
-## Arquivos a Modificar
+## Arquivos a Criar/Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/sync-planning-center/index.ts` | Todas as melhorias acima |
-| `supabase/functions/sync-planning-center-auto/index.ts` | Mesmas melhorias |
+| `src/hooks/useInactiveVolunteers.ts` | **Novo** - Hook que busca voluntários inativos |
+| `src/pages/ReportsPage.tsx` | Adicionar nova aba "Inativos" no Tabs |
 
----
+## Detalhes Técnicos
+
+### Hook `useInactiveVolunteers`
+
+1. Buscar todos os voluntários únicos da tabela `schedules` (pelo `volunteer_name` e `planning_center_person_id`)
+2. Para cada voluntário, encontrar a data do último check-in (via `check_ins` ligado por `schedule_id`) e a data da última escala
+3. Filtrar apenas os que têm a última atividade anterior à data de corte (ex: `now() - 4 meses`)
+4. Retornar: nome, última data de serviço, equipe mais recente, total de escalas, total de check-ins
+
+### Nova aba na página de Relatórios
+
+- Adicionar tab "Inativos" com ícone `UserX`
+- Seletor de período de inatividade: 2 meses, 3 meses, 4 meses, 6 meses, 1 ano
+- Filtro de equipe (já existente) se aplica também
+- Lista com: nome do voluntário, última data ativa, equipe, e um link para o histórico individual
+- Badge indicando há quantos meses está inativo
+- Contador no topo mostrando total de inativos encontrados
+
+### Layout da aba
+
+```text
+┌─────────────────────────────────────────────┐
+│ Tabs: [Rel. Semanal] [Visão Geral] [Inativos]│
+│                                               │
+│ Inativo há pelo menos: [4 meses ▼]           │
+│                                               │
+│ 12 voluntários inativos encontrados           │
+│                                               │
+│ ┌───────────────────────────────────────────┐ │
+│ │ João Silva          Worship    5 meses    │ │
+│ │ Último: 15/10/2025                        │ │
+│ │ Maria Santos        Mídia      4 meses    │ │
+│ │ Último: 20/11/2025                        │ │
+│ └───────────────────────────────────────────┘ │
+└─────────────────────────────────────────────┘
+```
 
 ## Resultado Esperado
 
-1. Voluntários com múltiplas posições aparecem com o status correto (confirmado prevalece sobre recusado)
-2. Cultos de hoje e da última semana são sempre incluídos na sincronização
-3. Falhas temporárias de API não causam perda de dados
-4. Logs detalhados permitem identificar exatamente quem está sendo sincronizado ou não
+O líder pode rapidamente identificar voluntários que pararam de servir, filtrar por equipe e período, e acessar o histórico individual de cada um para entender o contexto.
 
