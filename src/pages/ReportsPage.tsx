@@ -132,6 +132,10 @@ export default function ReportsPage() {
             <TabsList>
               <TabsTrigger value="weekly">Relatório Semanal</TabsTrigger>
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="inactive">
+                <UserX className="h-4 w-4 mr-1" />
+                Inativos
+              </TabsTrigger>
             </TabsList>
 
             {activeTab === 'weekly' ? (
