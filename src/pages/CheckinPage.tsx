@@ -73,11 +73,10 @@ export default function CheckinPage() {
     }
   };
 
-  const handleConfirmUnscheduledCheckIn = async () => {
+  const handleConfirmUnscheduledCheckIn = async (shouldPrint: boolean) => {
     if (!unscheduledDialog.result || !selectedServiceId) return;
 
     try {
-      // For volunteer_qrcode entries, volunteerId will be null
       const volunteerId = unscheduledDialog.result.profile.type === 'profile' 
         ? unscheduledDialog.result.profile.id 
         : null;
@@ -91,6 +90,16 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
+
+      if (shouldPrint) {
+        const service = todaysServices?.find(s => s.id === selectedServiceId);
+        printLabel({
+          volunteerName: unscheduledDialog.result.volunteerName,
+          teamName: unscheduledDialog.result.schedule?.team_name || undefined,
+          date: formatDate(new Date(), 'dd/MM/yyyy'),
+        });
+      }
+
       setUnscheduledDialog({ open: false, result: null });
     } catch (error) {
       toast.error('Erro ao fazer check-in');
