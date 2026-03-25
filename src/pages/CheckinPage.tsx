@@ -131,6 +131,14 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${params.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
+
+      // Auto-print label for manual unscheduled check-ins
+      if (printLabelChecked) {
+        printLabel({
+          volunteerName: params.volunteerName,
+          date: formatDate(new Date(), 'dd/MM/yyyy'),
+        });
+      }
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
