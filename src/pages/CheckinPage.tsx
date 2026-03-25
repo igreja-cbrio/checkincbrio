@@ -241,6 +241,14 @@ export default function CheckinPage() {
           <Button
             variant="outline"
             className="flex-1"
+            onClick={() => setTrainingDialogOpen(true)}
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Registrar Treinamento
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
             onClick={() => navigate(`/service/${selectedServiceId}/checkins`)}
           >
             <History className="h-4 w-4 mr-2" />
