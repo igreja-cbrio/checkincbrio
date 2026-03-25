@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History } from 'lucide-react';
+import { printLabel } from '@/components/checkin/LabelPrint';
+import { format as formatDate } from 'date-fns';
 
 export default function CheckinPage() {
   const navigate = useNavigate();
@@ -26,6 +28,7 @@ export default function CheckinPage() {
     open: boolean;
     result: QrCodeResult | null;
   }>({ open: false, result: null });
+  const [printLabelChecked, setPrintLabelChecked] = useState(true);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
@@ -70,11 +73,10 @@ export default function CheckinPage() {
     }
   };
 
-  const handleConfirmUnscheduledCheckIn = async () => {
+  const handleConfirmUnscheduledCheckIn = async (shouldPrint: boolean) => {
     if (!unscheduledDialog.result || !selectedServiceId) return;
 
     try {
-      // For volunteer_qrcode entries, volunteerId will be null
       const volunteerId = unscheduledDialog.result.profile.type === 'profile' 
         ? unscheduledDialog.result.profile.id 
         : null;
@@ -88,6 +90,16 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
+
+      if (shouldPrint) {
+        const service = todaysServices?.find(s => s.id === selectedServiceId);
+        printLabel({
+          volunteerName: unscheduledDialog.result.volunteerName,
+          teamName: unscheduledDialog.result.schedule?.team_name || undefined,
+          date: formatDate(new Date(), 'dd/MM/yyyy'),
+        });
+      }
+
       setUnscheduledDialog({ open: false, result: null });
     } catch (error) {
       toast.error('Erro ao fazer check-in');
@@ -119,6 +131,14 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${params.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
+
+      // Auto-print label for manual unscheduled check-ins
+      if (printLabelChecked) {
+        printLabel({
+          volunteerName: params.volunteerName,
+          date: formatDate(new Date(), 'dd/MM/yyyy'),
+        });
+      }
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
@@ -292,6 +312,8 @@ export default function CheckinPage() {
         volunteerName={unscheduledDialog.result?.volunteerName || ''}
         onConfirm={handleConfirmUnscheduledCheckIn}
         isProcessing={checkInMutation.isPending}
+        printLabelChecked={printLabelChecked}
+        onPrintLabelChange={setPrintLabelChecked}
       />
     </div>
   );
