@@ -26,6 +26,44 @@ function getMonthsFromPeriod(period: InactivityPeriod): number {
   return map[period];
 }
 
+async function fetchAllSchedules(teamName?: string) {
+  const PAGE_SIZE = 1000;
+  let allSchedules: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from('schedules')
+      .select(`
+        volunteer_name,
+        planning_center_person_id,
+        volunteer_id,
+        team_name,
+        service:services!inner(scheduled_at),
+        check_in:check_ins(id, checked_in_at)
+      `)
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (teamName) {
+      query = query.eq('team_name', teamName);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      allSchedules = allSchedules.concat(data);
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allSchedules;
+}
+
 export function useInactiveVolunteers(period: InactivityPeriod, teamName?: string) {
   return useQuery({
     queryKey: ['reports', 'inactive', period, teamName],
@@ -33,24 +71,7 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
       const months = getMonthsFromPeriod(period);
       const cutoffDate = subMonths(new Date(), months);
 
-      // Fetch all schedules with check_in info
-      let query = supabase
-        .from('schedules')
-        .select(`
-          volunteer_name,
-          planning_center_person_id,
-          volunteer_id,
-          team_name,
-          service:services!inner(scheduled_at),
-          check_in:check_ins(id, checked_in_at)
-        `);
-
-      if (teamName) {
-        query = query.eq('team_name', teamName);
-      }
-
-      const { data: schedules, error } = await query;
-      if (error) throw error;
+      const schedules = await fetchAllSchedules(teamName);
 
       // Group by volunteer
       const volunteerMap = new Map<string, {
@@ -64,7 +85,7 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
         total_checkins: number;
       }>();
 
-      schedules?.forEach((schedule: any) => {
+      schedules.forEach((schedule: any) => {
         const key = schedule.planning_center_person_id;
         const serviceDate = new Date(schedule.service.scheduled_at);
         const hasCheckin = schedule.check_in && schedule.check_in.length > 0;
@@ -96,7 +117,6 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
 
         if (serviceDate > vol.last_schedule_date) {
           vol.last_schedule_date = serviceDate;
-          // Update team if this is the most recent schedule and no newer checkin
           if (serviceDate > vol.last_activity_date) {
             vol.last_activity_date = serviceDate;
             vol.last_team = schedule.team_name;
