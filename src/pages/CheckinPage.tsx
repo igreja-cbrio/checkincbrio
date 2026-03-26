@@ -5,6 +5,7 @@ import { QrScanner } from '@/components/checkin/QrScanner';
 import { FaceScanner } from '@/components/checkin/FaceScanner';
 import { ManualCheckin, UnscheduledCheckInParams } from '@/components/checkin/ManualCheckin';
 import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
+import { TrainingRegistrationDialog } from '@/components/checkin/TrainingRegistrationDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +17,7 @@ import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History, GraduationCap } from 'lucide-react';
 import { printLabel } from '@/components/checkin/LabelPrint';
 import { format as formatDate } from 'date-fns';
 
@@ -29,6 +30,7 @@ export default function CheckinPage() {
     result: QrCodeResult | null;
   }>({ open: false, result: null });
   const [printLabelChecked, setPrintLabelChecked] = useState(true);
+  const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
@@ -239,6 +241,14 @@ export default function CheckinPage() {
           <Button
             variant="outline"
             className="flex-1"
+            onClick={() => setTrainingDialogOpen(true)}
+          >
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Registrar Treinamento
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1"
             onClick={() => navigate(`/service/${selectedServiceId}/checkins`)}
           >
             <History className="h-4 w-4 mr-2" />
@@ -315,6 +325,15 @@ export default function CheckinPage() {
         printLabelChecked={printLabelChecked}
         onPrintLabelChange={setPrintLabelChecked}
       />
+
+      {/* Training Registration Dialog */}
+      {selectedServiceId && (
+        <TrainingRegistrationDialog
+          open={trainingDialogOpen}
+          onOpenChange={setTrainingDialogOpen}
+          serviceId={selectedServiceId}
+        />
+      )}
     </div>
   );
 }
