@@ -325,6 +325,15 @@ export default function CheckinPage() {
         printLabelChecked={printLabelChecked}
         onPrintLabelChange={setPrintLabelChecked}
       />
+
+      {/* Training Registration Dialog */}
+      {selectedServiceId && (
+        <TrainingRegistrationDialog
+          open={trainingDialogOpen}
+          onOpenChange={setTrainingDialogOpen}
+          serviceId={selectedServiceId}
+        />
+      )}
     </div>
   );
 }
