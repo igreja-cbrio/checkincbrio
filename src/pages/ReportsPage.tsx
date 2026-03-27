@@ -106,6 +106,12 @@ export default function ReportsPage() {
     { value: '3months', label: '3 Meses' },
   ];
 
+  const thermometerPeriodOptions = [
+    { value: 'month', label: 'Mês Atual' },
+    { value: '3months', label: '3 Meses' },
+    { value: '6months', label: '6 Meses' },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
