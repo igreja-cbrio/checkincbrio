@@ -154,6 +154,10 @@ export default function ReportsPage() {
                 <UserX className="h-4 w-4 mr-1" />
                 Inativos
               </TabsTrigger>
+              <TabsTrigger value="thermometer">
+                <Thermometer className="h-4 w-4 mr-1" />
+                Termômetro
+              </TabsTrigger>
             </TabsList>
 
             {activeTab === 'weekly' ? (
