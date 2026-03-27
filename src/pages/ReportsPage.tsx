@@ -8,7 +8,7 @@ import { useAttendanceReport, useServiceReport, ReportPeriod } from '@/hooks/use
 import { useUnscheduledReport, UnscheduledPeriod } from '@/hooks/useUnscheduledReport';
 import { useWeeklyReport, WeeklyPeriod } from '@/hooks/useWeeklyReport';
 import { useTeams } from '@/hooks/useTeams';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX, Thermometer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -16,6 +16,8 @@ import { WeeklyReportCard } from '@/components/reports/WeeklyReportCard';
 import { ReportPrintButton } from '@/components/reports/ReportPrintButton';
 import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
 import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
+import { VolunteerThermometer } from '@/components/reports/VolunteerThermometer';
+import { useVolunteerThermometer, ThermometerPeriod } from '@/hooks/useVolunteerThermometer';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
@@ -30,6 +32,11 @@ export default function ReportsPage() {
     endDate: new Date(),
   });
   const [overviewCustomRange, setOverviewCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
+  const [thermometerPeriod, setThermometerPeriod] = useState<ThermometerPeriod>('month');
+  const [thermometerCustomRange, setThermometerCustomRange] = useState<DateRange>({
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
@@ -56,12 +63,17 @@ export default function ReportsPage() {
     teamFilter,
     weeklyPeriod === 'custom' ? weeklyCustomRange : undefined
   );
+  const { data: thermometerData, isLoading: loadingThermometer } = useVolunteerThermometer(
+    thermometerPeriod,
+    teamFilter,
+    thermometerPeriod === 'custom' ? thermometerCustomRange : undefined
+  );
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
@@ -92,6 +104,12 @@ export default function ReportsPage() {
     { value: 'week', label: 'Semana' },
     { value: 'month', label: 'Mês' },
     { value: '3months', label: '3 Meses' },
+  ];
+
+  const thermometerPeriodOptions = [
+    { value: 'month', label: 'Mês Atual' },
+    { value: '3months', label: '3 Meses' },
+    { value: '6months', label: '6 Meses' },
   ];
 
   return (
@@ -136,6 +154,10 @@ export default function ReportsPage() {
                 <UserX className="h-4 w-4 mr-1" />
                 Inativos
               </TabsTrigger>
+              <TabsTrigger value="thermometer">
+                <Thermometer className="h-4 w-4 mr-1" />
+                Termômetro
+              </TabsTrigger>
             </TabsList>
 
             {activeTab === 'weekly' ? (
@@ -145,6 +167,14 @@ export default function ReportsPage() {
                 customRange={weeklyCustomRange}
                 onCustomRangeChange={setWeeklyCustomRange}
                 periodOptions={weeklyPeriodOptions}
+              />
+            ) : activeTab === 'thermometer' ? (
+              <PeriodFilter
+                period={thermometerPeriod}
+                onPeriodChange={(v) => setThermometerPeriod(v as ThermometerPeriod)}
+                customRange={thermometerCustomRange}
+                onCustomRangeChange={setThermometerCustomRange}
+                periodOptions={thermometerPeriodOptions}
               />
             ) : (
               <PeriodFilter
@@ -342,6 +372,11 @@ export default function ReportsPage() {
           {/* Inactive Volunteers Tab */}
           <TabsContent value="inactive" className="mt-0">
             <InactiveVolunteersTab teamFilter={teamFilter} />
+          </TabsContent>
+
+          {/* Thermometer Tab */}
+          <TabsContent value="thermometer" className="mt-0">
+            {thermometerData && <VolunteerThermometer data={thermometerData} />}
           </TabsContent>
         </Tabs>
       )}
