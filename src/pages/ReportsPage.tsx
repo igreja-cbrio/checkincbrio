@@ -35,6 +35,11 @@ export default function ReportsPage() {
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
+  const [thermometerPeriod, setThermometerPeriod] = useState<ThermometerPeriod>('month');
+  const [thermometerCustomRange, setThermometerCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
