@@ -373,6 +373,11 @@ export default function ReportsPage() {
           <TabsContent value="inactive" className="mt-0">
             <InactiveVolunteersTab teamFilter={teamFilter} />
           </TabsContent>
+
+          {/* Thermometer Tab */}
+          <TabsContent value="thermometer" className="mt-0">
+            {thermometerData && <VolunteerThermometer data={thermometerData} />}
+          </TabsContent>
         </Tabs>
       )}
     </div>
