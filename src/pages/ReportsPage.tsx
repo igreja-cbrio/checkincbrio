@@ -63,6 +63,11 @@ export default function ReportsPage() {
     teamFilter,
     weeklyPeriod === 'custom' ? weeklyCustomRange : undefined
   );
+  const { data: thermometerData, isLoading: loadingThermometer } = useVolunteerThermometer(
+    thermometerPeriod,
+    teamFilter,
+    thermometerPeriod === 'custom' ? thermometerCustomRange : undefined
+  );
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
