@@ -16,6 +16,8 @@ import { WeeklyReportCard } from '@/components/reports/WeeklyReportCard';
 import { ReportPrintButton } from '@/components/reports/ReportPrintButton';
 import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
 import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
+import { VolunteerThermometer } from '@/components/reports/VolunteerThermometer';
+import { useVolunteerThermometer, ThermometerPeriod } from '@/hooks/useVolunteerThermometer';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
