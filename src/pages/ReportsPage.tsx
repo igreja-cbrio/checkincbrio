@@ -73,7 +73,7 @@ export default function ReportsPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
