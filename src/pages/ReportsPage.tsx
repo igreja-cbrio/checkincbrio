@@ -185,6 +185,14 @@ export default function ReportsPage() {
                 onCustomRangeChange={setThermometerCustomRange}
                 periodOptions={thermometerPeriodOptions}
               />
+            ) : activeTab === 'inactive' ? (
+              <PeriodFilter
+                period={inactivePeriod}
+                onPeriodChange={setInactivePeriod}
+                customRange={overviewCustomRange}
+                onCustomRangeChange={setOverviewCustomRange}
+                periodOptions={inactivePeriodOptions}
+              />
             ) : (
               <PeriodFilter
                 period={period}
