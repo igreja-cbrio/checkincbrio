@@ -4,40 +4,59 @@ import { ptBR } from 'date-fns/locale';
 import { UserX, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useInactiveVolunteers, InactivityPeriod } from '@/hooks/useInactiveVolunteers';
+import { useInactiveVolunteers, InactivityPeriod, InactivityCriteria } from '@/hooks/useInactiveVolunteers';
 import { Loader2 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 interface InactiveVolunteersTabProps {
   teamFilter?: string;
   inactivityPeriod: InactivityPeriod;
+  criteria: InactivityCriteria;
+  onCriteriaChange: (criteria: InactivityCriteria) => void;
 }
 
-export function InactiveVolunteersTab({ teamFilter, inactivityPeriod }: InactiveVolunteersTabProps) {
-  const { data, isLoading } = useInactiveVolunteers(inactivityPeriod, teamFilter);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+export function InactiveVolunteersTab({ teamFilter, inactivityPeriod, criteria, onCriteriaChange }: InactiveVolunteersTabProps) {
+  const { data, isLoading, isFetching } = useInactiveVolunteers(inactivityPeriod, criteria, teamFilter);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Badge variant="secondary" className="text-sm">
-          <UserX className="h-3.5 w-3.5 mr-1" />
-          {data?.length || 0} inativos
-        </Badge>
+      <div className="flex items-center justify-between">
+        <ToggleGroup
+          type="single"
+          value={criteria}
+          onValueChange={(v) => v && onCriteriaChange(v as InactivityCriteria)}
+          size="sm"
+        >
+          <ToggleGroupItem value="checkin" className="text-xs">
+            Por Check-in
+          </ToggleGroupItem>
+          <ToggleGroupItem value="schedule" className="text-xs">
+            Por Escala
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <div className="flex items-center gap-2">
+          {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          <Badge variant="secondary" className="text-sm">
+            <UserX className="h-3.5 w-3.5 mr-1" />
+            {data?.length || 0} inativos
+          </Badge>
+        </div>
       </div>
 
-      {data && data.length > 0 ? (
+      {isLoading && !data ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : data && data.length > 0 ? (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <UserX className="h-4 w-4 text-destructive" />
               Voluntários Inativos
+              <span className="text-xs font-normal text-muted-foreground">
+                ({criteria === 'checkin' ? 'sem check-in' : 'sem escala'})
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
