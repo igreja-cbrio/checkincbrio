@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { InactivityCriteria } from '@/hooks/useInactiveVolunteers';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
