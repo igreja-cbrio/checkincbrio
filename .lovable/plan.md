@@ -1,30 +1,43 @@
 
 
-# Plano: Remover filtro duplicado da aba Inativos
+# Plano: Consolidar equipes duplicadas no filtro
 
 ## Problema
 
-A aba "Inativos" mostra dois filtros: o `PeriodFilter` no canto superior direito (usado por todas as abas) e um dropdown interno "Inativo há pelo menos" dentro do `InactiveVolunteersTab`. O usuário quer manter apenas o filtro superior direito.
+O campo `team_name` na tabela `schedules` armazena nomes concatenados (ex: "Batismo, Oferta 8:30, Oferta 11:30"). O hook `useTeams` trata cada combinação como uma equipe separada, gerando duplicatas no dropdown.
 
-## Alterações
+## Correção
 
-### 1. `src/pages/ReportsPage.tsx`
+### `src/hooks/useTeams.ts`
 
-- Adicionar estado e opções de período específicas para a aba Inativos (ex: `inactivePeriod`, `inactiveCustomRange`)
-- No bloco condicional do `PeriodFilter`, adicionar caso `activeTab === 'inactive'` com opções relevantes (2 meses, 3 meses, 4 meses, 6 meses, 1 ano, personalizado)
-- Passar o período calculado como prop para `InactiveVolunteersTab` em vez de deixar o componente gerenciar internamente
+Ao invés de tratar cada `team_name` como um valor único, splittar por vírgula e extrair os nomes individuais:
 
-### 2. `src/components/reports/InactiveVolunteersTab.tsx`
+```typescript
+const allTeamNames = data
+  ?.flatMap(s => (s.team_name || '').split(',').map(t => t.trim()))
+  .filter(Boolean) as string[];
 
-- Remover o estado interno `inactivityPeriod` e o dropdown `Select`
-- Receber `inactivityPeriod` como prop (controlado pelo pai)
-- Manter apenas o badge "X inativos" e a lista de voluntários
+const uniqueTeams = [...new Set(allTeamNames)].sort();
+```
 
-### 3. `src/hooks/useInactiveVolunteers.ts`
+Isso transforma "Batismo, Oferta 8:30, Oferta 11:30" em 3 equipes separadas: "Batismo", "Oferta 8:30", "Oferta 11:30".
 
-- Sem alterações necessárias — já aceita `period` como parâmetro
+### Filtro nos hooks de relatório
 
-## Resultado
+Atualizar as queries que filtram por `team_name` para usar `ilike` ao invés de `eq`, pois agora o usuário seleciona "Batismo" e precisa encontrar registros onde `team_name` contém "Batismo" (seja sozinho ou concatenado):
 
-Um único filtro de período no canto superior direito, consistente com as demais abas.
+```typescript
+// De:
+.eq('team_name', teamFilter)
+// Para:
+.ilike('team_name', `%${teamFilter}%`)
+```
+
+Arquivos a verificar/atualizar com essa mudança de filtro:
+- `src/hooks/useReports.ts`
+- `src/hooks/useWeeklyReport.ts`
+- `src/hooks/useVolunteerThermometer.ts`
+- `src/hooks/useInactiveVolunteers.ts`
+- `src/hooks/useServiceCheckIns.ts`
+- Qualquer outro hook que filtre por `team_name`
 
