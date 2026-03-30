@@ -40,6 +40,7 @@ export default function ReportsPage() {
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
+  const [inactivePeriod, setInactivePeriod] = useState<string>('4months');
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
