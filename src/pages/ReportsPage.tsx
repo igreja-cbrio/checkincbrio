@@ -113,6 +113,14 @@ export default function ReportsPage() {
     { value: '6months', label: '6 Meses' },
   ];
 
+  const inactivePeriodOptions = [
+    { value: '2months', label: '2 Meses' },
+    { value: '3months', label: '3 Meses' },
+    { value: '4months', label: '4 Meses' },
+    { value: '6months', label: '6 Meses' },
+    { value: '1year', label: '1 Ano' },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
