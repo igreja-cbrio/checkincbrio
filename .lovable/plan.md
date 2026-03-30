@@ -1,51 +1,44 @@
 
 
-# Plano: Sincronização Histórica do Planning Center
+# Plano: Corrigir Erro na Sincronização Histórica
 
-## Objetivo
+## Problema Identificado
 
-Criar uma edge function dedicada para importar dados históricos de um período específico do Planning Center (ex: janeiro a outubro de 2025), populando as tabelas `services` e `schedules` com os dados passados.
+A edge function `sync-planning-center-historical` tem dois problemas:
 
-## Como Funciona
+1. **Método de autenticação inválido**: Usa `userSupabase.auth.getClaims(token)` que não é um método padrão do Supabase JS. Isso causa falha na validação do usuário, retornando 401 e gerando o erro "Failed to send a request to the Edge Function".
 
-1. Nova edge function `sync-planning-center-historical` que aceita parâmetros `start_date` e `end_date`
-2. Usa o filtro `?filter=after&after=2025-01-01&before=2025-10-31` da API do Planning Center para buscar planos no período
-3. Processa os planos da mesma forma que a sync atual (upsert em `services` e `schedules`, gera QR codes)
-4. Um botão na página Admin dispara a sincronização com seletor de período
+2. **Risco de timeout**: A função processa todos os 16 service types sequencialmente, podendo exceder o timeout de 60s para períodos longos (10 meses).
 
-## Arquivos a Criar/Modificar
+## Correções
+
+### 1. Corrigir autenticação na edge function
+
+Substituir `getClaims(token)` por `getUser()` no arquivo `supabase/functions/sync-planning-center-historical/index.ts`:
+
+```typescript
+// ANTES (inválido):
+const { data: claimsData, error: claimsError } = await userSupabase.auth.getClaims(token);
+const userId = claimsData.claims.sub;
+
+// DEPOIS (correto):
+const { data: { user }, error: userError } = await userSupabase.auth.getUser();
+if (userError || !user) { return 401 }
+const userId = user.id;
+```
+
+### 2. Melhorar tratamento de erro no AdminPage
+
+Adicionar mensagem de erro mais clara no `handleHistoricalSync` para diferenciar timeout de outros erros.
+
+### 3. Dar acesso admin ao usuário Matheus
+
+O usuário Matheus (user_id: `12aa03be-d5ce-4714-bd94-6bbf4fc69c5c`) precisa ter a role `admin` ou `leader` para usar a sincronização histórica. Verificar se ele já tem no banco e, caso contrário, inserir via migration.
+
+## Arquivos a Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `supabase/functions/sync-planning-center-historical/index.ts` | **Novo** - Edge function que busca planos por período usando paginação completa |
-| `src/pages/AdminPage.tsx` | Adicionar seção "Sincronização Histórica" com seletor de datas e botão de executar |
-| `supabase/config.toml` | Adicionar config para a nova function |
-
-## Detalhes Técnicos
-
-### API do Planning Center - Filtros de Data
-
-A API suporta filtrar planos por data:
-```
-GET /services/v2/service_types/{id}/plans?filter=after&after=2025-01-01&filter=before&before=2025-10-31&per_page=25&order=sort_date
-```
-
-### Edge Function
-
-- Reutiliza a mesma lógica de `fetchWithRetry`, `fetchAllTeamMembers`, status mapping e deduplicação da sync atual
-- Recebe `{ startDate: "2025-01-01", endDate: "2025-10-31" }` no body
-- Pagina todos os planos do período (pode ser centenas)
-- Progresso logado para acompanhamento
-
-### UI na Admin Page
-
-- Dois inputs de data (início e fim)
-- Botão "Sincronizar Período"
-- Indicador de progresso e resultado (X serviços, Y escalas importadas)
-
-### Observações
-
-- A operação pode demorar alguns minutos dependendo do volume de dados
-- Usa upsert, então é seguro rodar múltiplas vezes sem duplicar dados
-- Os dados importados ficam imediatamente disponíveis no Termômetro e outros relatórios
+| `supabase/functions/sync-planning-center-historical/index.ts` | Substituir `getClaims` por `getUser()` |
+| `src/pages/AdminPage.tsx` | Melhorar mensagem de erro de timeout |
 
