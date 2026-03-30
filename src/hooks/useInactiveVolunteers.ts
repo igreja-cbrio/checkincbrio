@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { subMonths } from 'date-fns';
 
 export type InactivityPeriod = '2months' | '3months' | '4months' | '6months' | '1year';
+export type InactivityCriteria = 'checkin' | 'schedule';
 
 export interface InactiveVolunteer {
   volunteer_name: string;
@@ -64,9 +65,9 @@ async function fetchAllSchedules(teamName?: string) {
   return allSchedules;
 }
 
-export function useInactiveVolunteers(period: InactivityPeriod, teamName?: string) {
+export function useInactiveVolunteers(period: InactivityPeriod, criteria: InactivityCriteria = 'checkin', teamName?: string) {
   return useQuery({
-    queryKey: ['reports', 'inactive', period, teamName],
+    queryKey: ['reports', 'inactive', period, criteria, teamName],
     queryFn: async () => {
       const months = getMonthsFromPeriod(period);
       const cutoffDate = subMonths(new Date(), months);
@@ -79,8 +80,9 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
         planning_center_person_id: string;
         volunteer_id: string | null;
         last_team: string | null;
-        last_activity_date: Date;
+        last_checkin_date: Date | null;
         last_schedule_date: Date;
+        first_schedule_date: Date;
         total_schedules: number;
         total_checkins: number;
       }>();
@@ -97,8 +99,9 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
             planning_center_person_id: schedule.planning_center_person_id,
             volunteer_id: schedule.volunteer_id,
             last_team: schedule.team_name,
-            last_activity_date: checkinDate || serviceDate,
+            last_checkin_date: checkinDate,
             last_schedule_date: serviceDate,
+            first_schedule_date: serviceDate,
             total_schedules: 0,
             total_checkins: 0,
           });
@@ -107,20 +110,24 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
         const vol = volunteerMap.get(key)!;
         vol.total_schedules++;
 
-        if (hasCheckin) {
+        if (hasCheckin && checkinDate) {
           vol.total_checkins++;
-          if (checkinDate && checkinDate > vol.last_activity_date) {
-            vol.last_activity_date = checkinDate;
-            vol.last_team = schedule.team_name;
+          if (!vol.last_checkin_date || checkinDate > vol.last_checkin_date) {
+            vol.last_checkin_date = checkinDate;
           }
         }
 
         if (serviceDate > vol.last_schedule_date) {
           vol.last_schedule_date = serviceDate;
-          if (serviceDate > vol.last_activity_date) {
-            vol.last_activity_date = serviceDate;
-            vol.last_team = schedule.team_name;
-          }
+        }
+
+        if (serviceDate < vol.first_schedule_date) {
+          vol.first_schedule_date = serviceDate;
+        }
+
+        // Update last_team based on most recent schedule
+        if (serviceDate >= vol.last_schedule_date) {
+          vol.last_team = schedule.team_name;
         }
 
         if (schedule.volunteer_id && !vol.volunteer_id) {
@@ -133,8 +140,18 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
       const result: InactiveVolunteer[] = [];
 
       volunteerMap.forEach((vol) => {
-        if (vol.last_activity_date < cutoffDate) {
-          const diffMs = now.getTime() - vol.last_activity_date.getTime();
+        let referenceDate: Date;
+
+        if (criteria === 'checkin') {
+          // Use last check-in date; if never checked in, use first schedule date
+          referenceDate = vol.last_checkin_date || vol.first_schedule_date;
+        } else {
+          // Use last schedule date (original behavior)
+          referenceDate = vol.last_schedule_date;
+        }
+
+        if (referenceDate < cutoffDate) {
+          const diffMs = now.getTime() - referenceDate.getTime();
           const monthsInactive = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44));
 
           result.push({
@@ -142,7 +159,7 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
             planning_center_person_id: vol.planning_center_person_id,
             volunteer_id: vol.volunteer_id,
             last_team: vol.last_team,
-            last_activity_date: vol.last_activity_date.toISOString(),
+            last_activity_date: referenceDate.toISOString(),
             total_schedules: vol.total_schedules,
             total_checkins: vol.total_checkins,
             months_inactive: monthsInactive,
@@ -153,5 +170,7 @@ export function useInactiveVolunteers(period: InactivityPeriod, teamName?: strin
       result.sort((a, b) => b.months_inactive - a.months_inactive);
       return result;
     },
+    staleTime: 5 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }

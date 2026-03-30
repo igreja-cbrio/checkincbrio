@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { InactivityCriteria } from '@/hooks/useInactiveVolunteers';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -41,6 +42,7 @@ export default function ReportsPage() {
     endDate: new Date(),
   });
   const [inactivePeriod, setInactivePeriod] = useState<string>('4months');
+  const [inactivityCriteria, setInactivityCriteria] = useState<InactivityCriteria>('checkin');
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
@@ -388,7 +390,7 @@ export default function ReportsPage() {
 
           {/* Inactive Volunteers Tab */}
           <TabsContent value="inactive" className="mt-0">
-            <InactiveVolunteersTab teamFilter={teamFilter} inactivityPeriod={inactivePeriod as any} />
+            <InactiveVolunteersTab teamFilter={teamFilter} inactivityPeriod={inactivePeriod as any} criteria={inactivityCriteria} onCriteriaChange={setInactivityCriteria} />
           </TabsContent>
 
           {/* Thermometer Tab */}
