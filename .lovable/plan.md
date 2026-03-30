@@ -1,74 +1,51 @@
 
 
-# Plano: Termômetro de Serviço dos Voluntários
+# Plano: Sincronização Histórica do Planning Center
 
 ## Objetivo
 
-Nova aba "Termômetro" na página de Relatórios que classifica visualmente cada voluntário por nível de atividade, mostrando quem serve demais, quem serve pouco e quem está ausente há muito tempo. Uma visualização tipo "gauge" com cores (vermelho/amarelo/verde/azul) para rápida identificação.
+Criar uma edge function dedicada para importar dados históricos de um período específico do Planning Center (ex: janeiro a outubro de 2025), populando as tabelas `services` e `schedules` com os dados passados.
 
 ## Como Funciona
 
-O sistema analisa os dados de `schedules` e `check_ins` no período selecionado e calcula para cada voluntário:
-- **Total de escalas** no período
-- **Total de check-ins** realizados
-- **Frequência** (escalas por semana/mês)
-- **Última atividade**
-
-Com base nisso, classifica em 4 faixas:
-
-```text
-🔴 Inativo      - Sem escala há mais de 2 meses
-🟡 Pouco ativo  - 1-2 escalas no período
-🟢 Regular      - 3-5 escalas no período (média)
-🔵 Muito ativo  - Acima da média (serve demais)
-```
-
-Os limiares se adaptam automaticamente ao período selecionado.
-
-## Layout Visual
-
-```text
-┌─────────────────────────────────────────┐
-│  Termômetro de Serviço                  │
-│                                         │
-│  🔵 12  🟢 25  🟡 8  🔴 5  ← cards     │
-│                                         │
-│  ┌─ Barra horizontal empilhada ───────┐ │
-│  │████ ██████████████ ████ ███        │ │
-│  └────────────────────────────────────┘ │
-│                                         │
-│  Lista de voluntários com badge de cor  │
-│  e barras de progresso por frequência   │
-│  ┌──────────────────────────────────┐   │
-│  │ 🔵 João Silva    8 escalas  ████│   │
-│  │ 🟢 Maria Santos  4 escalas  ██  │   │
-│  │ 🟡 Pedro Lima    1 escala   █   │   │
-│  │ 🔴 Ana Costa     0 (2m)         │   │
-│  └──────────────────────────────────┘   │
-└─────────────────────────────────────────┘
-```
+1. Nova edge function `sync-planning-center-historical` que aceita parâmetros `start_date` e `end_date`
+2. Usa o filtro `?filter=after&after=2025-01-01&before=2025-10-31` da API do Planning Center para buscar planos no período
+3. Processa os planos da mesma forma que a sync atual (upsert em `services` e `schedules`, gera QR codes)
+4. Um botão na página Admin dispara a sincronização com seletor de período
 
 ## Arquivos a Criar/Modificar
 
 | Arquivo | Alteração |
 |---------|-----------|
-| `src/hooks/useVolunteerThermometer.ts` | **Novo** - Hook que busca schedules + check_ins, calcula frequência e classifica cada voluntário |
-| `src/components/reports/VolunteerThermometer.tsx` | **Novo** - Componente com cards de resumo, barra empilhada e lista detalhada com badges coloridos |
-| `src/pages/ReportsPage.tsx` | Adicionar aba "Termômetro" nas TabsList, integrar o novo componente |
+| `supabase/functions/sync-planning-center-historical/index.ts` | **Novo** - Edge function que busca planos por período usando paginação completa |
+| `src/pages/AdminPage.tsx` | Adicionar seção "Sincronização Histórica" com seletor de datas e botão de executar |
+| `supabase/config.toml` | Adicionar config para a nova function |
 
 ## Detalhes Técnicos
 
-### Hook `useVolunteerThermometer`
+### API do Planning Center - Filtros de Data
 
-- Reutiliza a mesma lógica de paginação de `useInactiveVolunteers` para buscar todos os schedules
-- Para cada voluntário calcula: total de escalas, total de check-ins, data da última atividade, frequência média
-- Classifica em faixas baseado em percentis (p75 = muito ativo, p25-p75 = regular, abaixo de p25 = pouco ativo, sem atividade recente = inativo)
-- Aceita filtros de período e equipe (mesmos do relatório existente)
+A API suporta filtrar planos por data:
+```
+GET /services/v2/service_types/{id}/plans?filter=after&after=2025-01-01&filter=before&before=2025-10-31&per_page=25&order=sort_date
+```
 
-### Componente `VolunteerThermometer`
+### Edge Function
 
-- 4 cards coloridos no topo com contagem por faixa
-- Barra horizontal empilhada (recharts `BarChart` horizontal) mostrando proporção
-- Lista scrollável de voluntários ordenados por frequência, cada um com: badge de cor, nome, total de escalas, barra de progresso relativa
-- Clicável para ir ao histórico do voluntário (mesmo padrão da aba Overview)
+- Reutiliza a mesma lógica de `fetchWithRetry`, `fetchAllTeamMembers`, status mapping e deduplicação da sync atual
+- Recebe `{ startDate: "2025-01-01", endDate: "2025-10-31" }` no body
+- Pagina todos os planos do período (pode ser centenas)
+- Progresso logado para acompanhamento
+
+### UI na Admin Page
+
+- Dois inputs de data (início e fim)
+- Botão "Sincronizar Período"
+- Indicador de progresso e resultado (X serviços, Y escalas importadas)
+
+### Observações
+
+- A operação pode demorar alguns minutos dependendo do volume de dados
+- Usa upsert, então é seguro rodar múltiplas vezes sem duplicar dados
+- Os dados importados ficam imediatamente disponíveis no Termômetro e outros relatórios
 
