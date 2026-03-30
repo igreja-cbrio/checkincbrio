@@ -80,7 +80,7 @@ export function useAttendanceReport(
 
       // Filter by team if specified
       if (teamName) {
-        query = query.eq('team_name', teamName);
+        query = query.ilike('team_name', `%${teamName}%`);
       }
 
       const { data: schedules, error } = await query;
