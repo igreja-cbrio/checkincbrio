@@ -102,7 +102,7 @@ export function useWeeklyReport(
       services?.forEach((service: any) => {
         // Filter by team if specified
         const schedules = teamName
-          ? service.schedules?.filter((s: any) => s.team_name === teamName) || []
+          ? service.schedules?.filter((s: any) => (s.team_name || '').split(',').map((t: string) => t.trim()).includes(teamName)) || []
           : service.schedules || [];
 
         const positions = schedules.length;
