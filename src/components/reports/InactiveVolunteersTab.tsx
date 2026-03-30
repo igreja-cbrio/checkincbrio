@@ -1,28 +1,18 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserX, History } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInactiveVolunteers, InactivityPeriod } from '@/hooks/useInactiveVolunteers';
 import { Loader2 } from 'lucide-react';
 
 interface InactiveVolunteersTabProps {
   teamFilter?: string;
+  inactivityPeriod: InactivityPeriod;
 }
 
-const periodOptions = [
-  { value: '2months', label: '2 meses' },
-  { value: '3months', label: '3 meses' },
-  { value: '4months', label: '4 meses' },
-  { value: '6months', label: '6 meses' },
-  { value: '1year', label: '1 ano' },
-];
-
-export function InactiveVolunteersTab({ teamFilter }: InactiveVolunteersTabProps) {
-  const [inactivityPeriod, setInactivityPeriod] = useState<InactivityPeriod>('4months');
+export function InactiveVolunteersTab({ teamFilter, inactivityPeriod }: InactiveVolunteersTabProps) {
   const { data, isLoading } = useInactiveVolunteers(inactivityPeriod, teamFilter);
 
   if (isLoading) {
@@ -35,24 +25,8 @@ export function InactiveVolunteersTab({ teamFilter }: InactiveVolunteersTabProps
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Inativo há pelo menos:</span>
-          <Select value={inactivityPeriod} onValueChange={(v) => setInactivityPeriod(v as InactivityPeriod)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {periodOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Badge variant="secondary" className="text-sm self-start">
+      <div className="flex items-center justify-end">
+        <Badge variant="secondary" className="text-sm">
           <UserX className="h-3.5 w-3.5 mr-1" />
           {data?.length || 0} inativos
         </Badge>

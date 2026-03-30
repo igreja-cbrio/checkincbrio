@@ -40,6 +40,7 @@ export default function ReportsPage() {
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
+  const [inactivePeriod, setInactivePeriod] = useState<string>('4months');
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
@@ -112,6 +113,14 @@ export default function ReportsPage() {
     { value: '6months', label: '6 Meses' },
   ];
 
+  const inactivePeriodOptions = [
+    { value: '2months', label: '2 Meses' },
+    { value: '3months', label: '3 Meses' },
+    { value: '4months', label: '4 Meses' },
+    { value: '6months', label: '6 Meses' },
+    { value: '1year', label: '1 Ano' },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
@@ -175,6 +184,14 @@ export default function ReportsPage() {
                 customRange={thermometerCustomRange}
                 onCustomRangeChange={setThermometerCustomRange}
                 periodOptions={thermometerPeriodOptions}
+              />
+            ) : activeTab === 'inactive' ? (
+              <PeriodFilter
+                period={inactivePeriod}
+                onPeriodChange={setInactivePeriod}
+                customRange={overviewCustomRange}
+                onCustomRangeChange={setOverviewCustomRange}
+                periodOptions={inactivePeriodOptions}
               />
             ) : (
               <PeriodFilter
@@ -371,7 +388,7 @@ export default function ReportsPage() {
 
           {/* Inactive Volunteers Tab */}
           <TabsContent value="inactive" className="mt-0">
-            <InactiveVolunteersTab teamFilter={teamFilter} />
+            <InactiveVolunteersTab teamFilter={teamFilter} inactivityPeriod={inactivePeriod as any} />
           </TabsContent>
 
           {/* Thermometer Tab */}
