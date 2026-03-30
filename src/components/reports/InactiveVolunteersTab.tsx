@@ -25,24 +25,8 @@ export function InactiveVolunteersTab({ teamFilter, inactivityPeriod }: Inactive
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Inativo há pelo menos:</span>
-          <Select value={inactivityPeriod} onValueChange={(v) => setInactivityPeriod(v as InactivityPeriod)}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {periodOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Badge variant="secondary" className="text-sm self-start">
+      <div className="flex items-center justify-end">
+        <Badge variant="secondary" className="text-sm">
           <UserX className="h-3.5 w-3.5 mr-1" />
           {data?.length || 0} inativos
         </Badge>

@@ -388,7 +388,7 @@ export default function ReportsPage() {
 
           {/* Inactive Volunteers Tab */}
           <TabsContent value="inactive" className="mt-0">
-            <InactiveVolunteersTab teamFilter={teamFilter} />
+            <InactiveVolunteersTab teamFilter={teamFilter} inactivityPeriod={inactivePeriod as any} />
           </TabsContent>
 
           {/* Thermometer Tab */}
