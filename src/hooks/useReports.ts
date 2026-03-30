@@ -80,7 +80,7 @@ export function useAttendanceReport(
 
       // Filter by team if specified
       if (teamName) {
-        query = query.eq('team_name', teamName);
+        query = query.ilike('team_name', `%${teamName}%`);
       }
 
       const { data: schedules, error } = await query;
@@ -153,7 +153,7 @@ export function useServiceReport(
       const report: ServiceReport[] = services?.map((service: any) => {
         // Filter schedules by team if specified
         const filteredSchedules = teamName
-          ? service.schedules?.filter((s: any) => s.team_name === teamName) || []
+          ? service.schedules?.filter((s: any) => (s.team_name || '').split(',').map((t: string) => t.trim()).includes(teamName)) || []
           : service.schedules || [];
         
         const totalScheduled = filteredSchedules.length;

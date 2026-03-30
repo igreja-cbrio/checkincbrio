@@ -46,7 +46,7 @@ async function fetchAllSchedules(teamName?: string) {
       .range(from, from + PAGE_SIZE - 1);
 
     if (teamName) {
-      query = query.eq('team_name', teamName);
+      query = query.ilike('team_name', `%${teamName}%`);
     }
 
     const { data, error } = await query;

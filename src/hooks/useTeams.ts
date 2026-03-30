@@ -13,9 +13,12 @@ export function useTeams() {
 
       if (error) throw error;
 
-      // Get unique team names
-      const uniqueTeams = [...new Set(data?.map(s => s.team_name).filter(Boolean) as string[])];
-      return uniqueTeams.sort();
+      // Split concatenated team names and get unique individual names
+      const allTeamNames = data
+        ?.flatMap(s => (s.team_name || '').split(',').map(t => t.trim()))
+        .filter(Boolean) as string[];
+      const uniqueTeams = [...new Set(allTeamNames)].sort();
+      return uniqueTeams;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
