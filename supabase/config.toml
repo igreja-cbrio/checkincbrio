@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.create-volunteer-qrcode]
 verify_jwt = false
+
+[functions.sync-planning-center-historical]
+verify_jwt = false
