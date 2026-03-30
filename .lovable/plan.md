@@ -1,43 +1,43 @@
 
 
-# Plano: Consolidar equipes duplicadas no filtro
+# Plano: Filtro de critério de inatividade + otimização de performance
 
 ## Problema
 
-O campo `team_name` na tabela `schedules` armazena nomes concatenados (ex: "Batismo, Oferta 8:30, Oferta 11:30"). O hook `useTeams` trata cada combinação como uma equipe separada, gerando duplicatas no dropdown.
+1. O usuário quer escolher se "inativo" significa sem **check-in** ou sem **escala** — atualmente só considera escalas
+2. A troca de filtro demora porque cada mudança re-fetcha todos os schedules do banco (paginação de 1000 em 1000)
 
-## Correção
+## Alterações
 
-### `src/hooks/useTeams.ts`
+### 1. Adicionar toggle "Por Check-in / Por Escala" na aba Inativos
 
-Ao invés de tratar cada `team_name` como um valor único, splittar por vírgula e extrair os nomes individuais:
+**`src/pages/ReportsPage.tsx`**
+- Novo estado `inactivityCriteria: 'checkin' | 'schedule'` (default: `'checkin'`)
+- Passar como prop para `InactiveVolunteersTab`
 
-```typescript
-const allTeamNames = data
-  ?.flatMap(s => (s.team_name || '').split(',').map(t => t.trim()))
-  .filter(Boolean) as string[];
+**`src/components/reports/InactiveVolunteersTab.tsx`**
+- Receber prop `criteria: 'checkin' | 'schedule'`
+- Exibir um toggle/segmented control abaixo da badge: "Por Check-in" | "Por Escala"
+- Passar para o hook
 
-const uniqueTeams = [...new Set(allTeamNames)].sort();
-```
+### 2. Atualizar lógica no hook
 
-Isso transforma "Batismo, Oferta 8:30, Oferta 11:30" em 3 equipes separadas: "Batismo", "Oferta 8:30", "Oferta 11:30".
+**`src/hooks/useInactiveVolunteers.ts`**
+- Receber parâmetro `criteria: 'checkin' | 'schedule'`
+- Incluir no `queryKey` para cache separado
+- Quando `criteria === 'checkin'`: `last_activity_date` baseada apenas em check-ins. Voluntários sem nenhum check-in usam a data da primeira escala
+- Quando `criteria === 'schedule'`: comportamento atual (baseado em escalas)
 
-### Filtro nos hooks de relatório
+### 3. Otimizar performance (reduzir demora)
 
-Atualizar as queries que filtram por `team_name` para usar `ilike` ao invés de `eq`, pois agora o usuário seleciona "Batismo" e precisa encontrar registros onde `team_name` contém "Batismo" (seja sozinho ou concatenado):
+**`src/hooks/useInactiveVolunteers.ts`**
+- Adicionar `staleTime: 5 * 60 * 1000` (5 min) para evitar re-fetch desnecessário ao trocar e voltar
+- Adicionar `keepPreviousData: true` (placeholderData) para manter dados antigos visíveis enquanto carrega novos
+- Isso elimina o flash de loading ao trocar filtros
 
-```typescript
-// De:
-.eq('team_name', teamFilter)
-// Para:
-.ilike('team_name', `%${teamFilter}%`)
-```
+## Resultado
 
-Arquivos a verificar/atualizar com essa mudança de filtro:
-- `src/hooks/useReports.ts`
-- `src/hooks/useWeeklyReport.ts`
-- `src/hooks/useVolunteerThermometer.ts`
-- `src/hooks/useInactiveVolunteers.ts`
-- `src/hooks/useServiceCheckIns.ts`
-- Qualquer outro hook que filtre por `team_name`
+- Toggle visível na aba para escolher critério de inatividade
+- "Por Check-in" mostra ~136 inativos; "Por Escala" mostra ~12
+- Troca de filtros mais fluida sem tela de loading intermediária
 
