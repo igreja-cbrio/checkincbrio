@@ -42,6 +42,7 @@ export default function ReportsPage() {
     endDate: new Date(),
   });
   const [inactivePeriod, setInactivePeriod] = useState<string>('4months');
+  const [inactivityCriteria, setInactivityCriteria] = useState<InactivityCriteria>('checkin');
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
   const teamFilter = selectedTeam === 'all' ? undefined : selectedTeam;
