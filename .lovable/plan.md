@@ -1,44 +1,30 @@
 
 
-# Plano: Corrigir Erro na Sincronização Histórica
+# Plano: Remover filtro duplicado da aba Inativos
 
-## Problema Identificado
+## Problema
 
-A edge function `sync-planning-center-historical` tem dois problemas:
+A aba "Inativos" mostra dois filtros: o `PeriodFilter` no canto superior direito (usado por todas as abas) e um dropdown interno "Inativo há pelo menos" dentro do `InactiveVolunteersTab`. O usuário quer manter apenas o filtro superior direito.
 
-1. **Método de autenticação inválido**: Usa `userSupabase.auth.getClaims(token)` que não é um método padrão do Supabase JS. Isso causa falha na validação do usuário, retornando 401 e gerando o erro "Failed to send a request to the Edge Function".
+## Alterações
 
-2. **Risco de timeout**: A função processa todos os 16 service types sequencialmente, podendo exceder o timeout de 60s para períodos longos (10 meses).
+### 1. `src/pages/ReportsPage.tsx`
 
-## Correções
+- Adicionar estado e opções de período específicas para a aba Inativos (ex: `inactivePeriod`, `inactiveCustomRange`)
+- No bloco condicional do `PeriodFilter`, adicionar caso `activeTab === 'inactive'` com opções relevantes (2 meses, 3 meses, 4 meses, 6 meses, 1 ano, personalizado)
+- Passar o período calculado como prop para `InactiveVolunteersTab` em vez de deixar o componente gerenciar internamente
 
-### 1. Corrigir autenticação na edge function
+### 2. `src/components/reports/InactiveVolunteersTab.tsx`
 
-Substituir `getClaims(token)` por `getUser()` no arquivo `supabase/functions/sync-planning-center-historical/index.ts`:
+- Remover o estado interno `inactivityPeriod` e o dropdown `Select`
+- Receber `inactivityPeriod` como prop (controlado pelo pai)
+- Manter apenas o badge "X inativos" e a lista de voluntários
 
-```typescript
-// ANTES (inválido):
-const { data: claimsData, error: claimsError } = await userSupabase.auth.getClaims(token);
-const userId = claimsData.claims.sub;
+### 3. `src/hooks/useInactiveVolunteers.ts`
 
-// DEPOIS (correto):
-const { data: { user }, error: userError } = await userSupabase.auth.getUser();
-if (userError || !user) { return 401 }
-const userId = user.id;
-```
+- Sem alterações necessárias — já aceita `period` como parâmetro
 
-### 2. Melhorar tratamento de erro no AdminPage
+## Resultado
 
-Adicionar mensagem de erro mais clara no `handleHistoricalSync` para diferenciar timeout de outros erros.
-
-### 3. Dar acesso admin ao usuário Matheus
-
-O usuário Matheus (user_id: `12aa03be-d5ce-4714-bd94-6bbf4fc69c5c`) precisa ter a role `admin` ou `leader` para usar a sincronização histórica. Verificar se ele já tem no banco e, caso contrário, inserir via migration.
-
-## Arquivos a Modificar
-
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/sync-planning-center-historical/index.ts` | Substituir `getClaims` por `getUser()` |
-| `src/pages/AdminPage.tsx` | Melhorar mensagem de erro de timeout |
+Um único filtro de período no canto superior direito, consistente com as demais abas.
 
