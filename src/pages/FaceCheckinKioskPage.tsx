@@ -25,7 +25,7 @@ interface SuccessData {
 
 export default function FaceCheckinKioskPage() {
   const navigate = useNavigate();
-  const { isLeader } = useAuth();
+  const { isLeader, isLoading: authLoading, roles } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
