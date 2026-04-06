@@ -7,7 +7,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { serviceId, scheduleId, volunteerName, planningCenterId } = await req.json();
+    const body = await req.json();
+    const { serviceId, action, scheduleId, volunteerName, planningCenterId } = body;
 
     if (!serviceId) {
       return new Response(
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Validate the service exists and is today
+    // Validate service exists and is today
     const { data: service, error: serviceError } = await supabase
       .from("services")
       .select("id, name, scheduled_at")
@@ -48,9 +49,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If scheduleId provided, do a scheduled check-in
+    // LIST action — return schedules for the service
+    if (action === "list") {
+      const { data: schedules, error: schedError } = await supabase
+        .from("schedules")
+        .select("id, volunteer_name, team_name, position_name, planning_center_person_id")
+        .eq("service_id", serviceId)
+        .order("volunteer_name");
+
+      if (schedError) throw schedError;
+
+      // Get check-ins for this service
+      const { data: checkIns } = await supabase
+        .from("check_ins")
+        .select("schedule_id")
+        .eq("service_id", serviceId);
+
+      const checkedInScheduleIds = new Set((checkIns || []).map((c: any) => c.schedule_id));
+
+      const result = (schedules || []).map((s: any) => ({
+        id: s.id,
+        volunteer_name: s.volunteer_name,
+        team_name: s.team_name,
+        position_name: s.position_name,
+        has_checkin: checkedInScheduleIds.has(s.id),
+      }));
+
+      return new Response(
+        JSON.stringify({ serviceName: service.name, schedules: result }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // CHECK-IN action (scheduled)
     if (scheduleId) {
-      // Check for duplicate
       const { data: existing } = await supabase
         .from("check_ins")
         .select("id")
@@ -64,7 +96,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get schedule to find volunteer_id
       const { data: schedule } = await supabase
         .from("schedules")
         .select("id, volunteer_id, volunteer_name, team_name, position_name")
@@ -78,7 +109,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { data: checkIn, error: checkInError } = await supabase
+      const { error: checkInError } = await supabase
         .from("check_ins")
         .insert({
           schedule_id: scheduleId,
@@ -86,9 +117,7 @@ Deno.serve(async (req) => {
           service_id: serviceId,
           method: "self_service",
           is_unscheduled: false,
-        })
-        .select()
-        .single();
+        });
 
       if (checkInError) {
         if (checkInError.code === "23505") {
@@ -100,7 +129,6 @@ Deno.serve(async (req) => {
         throw checkInError;
       }
 
-      // Update confirmation status
       await supabase
         .from("schedules")
         .update({ confirmation_status: "confirmed" })
@@ -118,7 +146,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Unscheduled check-in
+    // UNSCHEDULED check-in
     if (!volunteerName) {
       return new Response(
         JSON.stringify({ error: "volunteerName é obrigatório para check-in sem escala" }),
@@ -126,9 +154,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Try to find volunteer_id from profiles or volunteer_qrcodes
     let volunteerId: string | null = null;
-
     if (planningCenterId) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -136,29 +162,6 @@ Deno.serve(async (req) => {
         .eq("planning_center_id", planningCenterId)
         .maybeSingle();
       if (profile) volunteerId = profile.id;
-    }
-
-    // Check for existing unscheduled check-in today
-    if (volunteerId) {
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
-
-      const { data: existingUnscheduled } = await supabase
-        .from("check_ins")
-        .select("id")
-        .eq("volunteer_id", volunteerId)
-        .eq("service_id", serviceId)
-        .eq("is_unscheduled", true)
-        .gte("checked_in_at", startOfDay)
-        .lt("checked_in_at", endOfDay)
-        .maybeSingle();
-
-      if (existingUnscheduled) {
-        return new Response(
-          JSON.stringify({ error: "Você já fez check-in neste culto", alreadyCheckedIn: true }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
     }
 
     const { error: insertError } = await supabase
@@ -173,11 +176,7 @@ Deno.serve(async (req) => {
     if (insertError) throw insertError;
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        volunteerName,
-        isUnscheduled: true,
-      }),
+      JSON.stringify({ success: true, volunteerName, isUnscheduled: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
