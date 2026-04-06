@@ -18,6 +18,7 @@ import CheckInHistoryPage from "./pages/CheckInHistoryPage";
 import ServiceCheckInHistoryPage from "./pages/ServiceCheckInHistoryPage";
 import ProfilePage from "./pages/ProfilePage";
 import PlanningCenterCallback from "./pages/PlanningCenterCallback";
+import SelfCheckinPage from "./pages/SelfCheckinPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
