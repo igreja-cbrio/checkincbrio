@@ -97,7 +97,7 @@ export default function FaceCheckinKioskPage() {
 
   const { isLoading } = useAuth();
 
-  if (isLoading || (!isLeader && roles.length === 0)) {
+  if (authLoading || (!isLeader && roles.length === 0)) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
         <p className="text-muted-foreground">Carregando...</p>
