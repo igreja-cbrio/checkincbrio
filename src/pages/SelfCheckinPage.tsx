@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Check, AlertTriangle, Loader2, Church } from 'lucide-react';
 import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,15 +21,7 @@ interface Schedule {
   volunteer_name: string;
   team_name: string | null;
   position_name: string | null;
-  planning_center_person_id: string;
-  volunteer_id: string | null;
-  check_in?: { checked_in_at: string } | null;
-}
-
-interface Service {
-  id: string;
-  name: string;
-  scheduled_at: string;
+  has_checkin: boolean;
 }
 
 interface SuccessData {
@@ -40,97 +31,67 @@ interface SuccessData {
   isUnscheduled?: boolean;
 }
 
-interface UnscheduledConfirm {
-  volunteerId?: string;
-  planningCenterId?: string;
-  volunteerName: string;
+function getEdgeFunctionUrl(path: string) {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  return `https://${projectId}.supabase.co/functions/v1/${path}`;
 }
 
 export default function SelfCheckinPage() {
   const [searchParams] = useSearchParams();
   const serviceId = searchParams.get('service');
   const [searchTerm, setSearchTerm] = useState('');
-  const [service, setService] = useState<Service | null>(null);
+  const [serviceName, setServiceName] = useState('');
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
-  const [unscheduledConfirm, setUnscheduledConfirm] = useState<UnscheduledConfirm | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!serviceId) {
       setError('Nenhum culto selecionado');
       setLoading(false);
       return;
     }
-    loadData();
-  }, [serviceId]);
-
-  const loadData = async () => {
     try {
-      // Fetch service info (public read via anon key)
-      const { data: svc, error: svcErr } = await supabase
-        .from('services')
-        .select('id, name, scheduled_at')
-        .eq('id', serviceId!)
-        .single();
-
-      if (svcErr || !svc) {
-        setError('Culto não encontrado');
+      const res = await fetch(getEdgeFunctionUrl('self-checkin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceId, action: 'list' }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
         return;
       }
-      setService(svc);
-
-      // Fetch schedules with check-ins
-      const { data: scheds, error: schedErr } = await supabase
-        .from('schedules')
-        .select('id, volunteer_name, team_name, position_name, planning_center_person_id, volunteer_id, check_in:check_ins(*)')
-        .eq('service_id', serviceId!)
-        .order('volunteer_name');
-
-      if (schedErr) throw schedErr;
-
-      setSchedules(
-        (scheds || []).map((s: any) => ({
-          ...s,
-          check_in: s.check_in?.[0] || null,
-        }))
-      );
-    } catch (e) {
+      setServiceName(data.serviceName || '');
+      setSchedules(data.schedules || []);
+    } catch {
       setError('Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceId]);
 
-  const callSelfCheckin = useCallback(async (body: any) => {
-    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-    const res = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/self-checkin`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
-    );
-    return res.json();
-  }, []);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleCheckIn = useCallback(async (schedule: Schedule) => {
-    if (schedule.check_in || processing) return;
+    if (schedule.has_checkin || processing) return;
     setProcessing(true);
     try {
-      const result = await callSelfCheckin({
-        serviceId,
-        scheduleId: schedule.id,
+      const res = await fetch(getEdgeFunctionUrl('self-checkin'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceId, scheduleId: schedule.id }),
       });
+      const result = await res.json();
 
       if (result.error) {
         if (result.alreadyCheckedIn) {
           toast.info('Check-in já foi realizado');
-          // Refresh to update UI
-          loadData();
+          fetchData();
         } else {
           toast.error(result.error);
         }
@@ -143,42 +104,13 @@ export default function SelfCheckinPage() {
         positionName: result.positionName,
       });
       setSearchTerm('');
-      // Refresh schedules
-      loadData();
+      fetchData();
     } catch {
       toast.error('Erro ao fazer check-in');
     } finally {
       setProcessing(false);
     }
-  }, [serviceId, processing, callSelfCheckin]);
-
-  const handleUnscheduledConfirm = useCallback(async () => {
-    if (!unscheduledConfirm || processing) return;
-    setProcessing(true);
-    try {
-      const result = await callSelfCheckin({
-        serviceId,
-        volunteerName: unscheduledConfirm.volunteerName,
-        planningCenterId: unscheduledConfirm.planningCenterId,
-      });
-
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      setSuccessData({
-        volunteerName: result.volunteerName,
-        isUnscheduled: true,
-      });
-      setSearchTerm('');
-    } catch {
-      toast.error('Erro ao fazer check-in');
-    } finally {
-      setProcessing(false);
-      setUnscheduledConfirm(null);
-    }
-  }, [unscheduledConfirm, serviceId, processing, callSelfCheckin]);
+  }, [serviceId, processing, fetchData]);
 
   const filtered = schedules.filter(s =>
     s.volunteer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,15 +136,15 @@ export default function SelfCheckinPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background safe-area-inset">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
       <header className="p-4 border-b bg-card text-center">
         <div className="flex items-center justify-center gap-2">
           <Church className="h-5 w-5 text-primary" />
           <h1 className="text-lg font-bold">Check-in</h1>
         </div>
-        {service && (
-          <p className="text-sm text-muted-foreground mt-1">{service.name}</p>
+        {serviceName && (
+          <p className="text-sm text-muted-foreground mt-1">{serviceName}</p>
         )}
       </header>
 
@@ -237,7 +169,7 @@ export default function SelfCheckinPage() {
             key={schedule.id}
             className="w-full flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-accent/50 transition-colors active:scale-[0.98] disabled:opacity-60"
             onClick={() => handleCheckIn(schedule)}
-            disabled={!!schedule.check_in || processing}
+            disabled={schedule.has_checkin || processing}
           >
             <div className="flex-1 text-left min-w-0">
               <p className="text-base font-semibold truncate">{schedule.volunteer_name}</p>
@@ -247,7 +179,7 @@ export default function SelfCheckinPage() {
                 </Badge>
               )}
             </div>
-            {schedule.check_in ? (
+            {schedule.has_checkin ? (
               <Badge className="bg-green-500 hover:bg-green-500 px-3 py-1 shrink-0 ml-3">
                 <Check className="h-4 w-4 mr-1" />
                 Presente
@@ -274,28 +206,6 @@ export default function SelfCheckinPage() {
           </div>
         )}
       </div>
-
-      {/* Unscheduled confirmation */}
-      <AlertDialog open={!!unscheduledConfirm} onOpenChange={() => setUnscheduledConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Sem escala
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <strong>{unscheduledConfirm?.volunteerName}</strong> não está escalado(a).
-              Deseja registrar check-in?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleUnscheduledConfirm} className="bg-amber-500 hover:bg-amber-600">
-              Confirmar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Success overlay */}
       {successData && (
