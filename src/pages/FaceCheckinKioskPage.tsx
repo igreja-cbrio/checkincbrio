@@ -95,6 +95,16 @@ export default function FaceCheckinKioskPage() {
     }
   }, [selectedServiceId, checkInMutation, schedules, recentCheckIns]);
 
+  const { isLoading } = useAuth();
+
+  if (isLoading || (!isLeader && roles.length === 0)) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
+
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
