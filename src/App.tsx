@@ -34,6 +34,7 @@ const App = () => (
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/planning-center/callback" element={<PlanningCenterCallback />} />
             <Route path="/checkin/kiosk" element={<FaceCheckinKioskPage />} />
+            <Route path="/selfcheckin" element={<SelfCheckinPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
