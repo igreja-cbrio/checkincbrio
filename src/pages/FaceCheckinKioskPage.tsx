@@ -3,15 +3,18 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AutoFaceScanner, FaceMatchResult } from '@/components/checkin/AutoFaceScanner';
 import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
+import { KioskNameCheckin } from '@/components/checkin/KioskNameCheckin';
+import { KioskQrDisplay } from '@/components/checkin/KioskQrDisplay';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useTodaysServices } from '@/hooks/useServices';
 import { useServiceSchedules, useCheckIn, useUnscheduledCheckIns } from '@/hooks/useSchedules';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users, ClipboardList, Camera, QrCode } from 'lucide-react';
 
 interface SuccessData {
   volunteerName: string;
@@ -27,13 +30,13 @@ export default function FaceCheckinKioskPage() {
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [recentCheckIns, setRecentCheckIns] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('list');
 
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules } = useServiceSchedules(selectedServiceId);
   const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
 
-  // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -50,19 +53,17 @@ export default function FaceCheckinKioskPage() {
     }
   }, []);
 
-  const handleMatch = useCallback(async (result: FaceMatchResult) => {
+  const handleFacialMatch = useCallback(async (result: FaceMatchResult) => {
     if (!selectedServiceId) return;
-    
-    // Prevent duplicate check-ins for same person in short time
+
     if (recentCheckIns.includes(result.volunteerName)) {
       toast.info(`${result.volunteerName} já fez check-in recentemente`);
       return;
     }
 
     try {
-      // Find schedule info for this volunteer if available
-      const volunteerSchedule = schedules?.find(s => 
-        s.volunteer_id === result.volunteerId || 
+      const volunteerSchedule = schedules?.find(s =>
+        s.volunteer_id === result.volunteerId ||
         s.planning_center_person_id === result.planningCenterId
       );
 
@@ -74,13 +75,11 @@ export default function FaceCheckinKioskPage() {
         isUnscheduled: !volunteerSchedule,
       });
 
-      // Track recent check-ins
       setRecentCheckIns(prev => [...prev, result.volunteerName]);
       setTimeout(() => {
         setRecentCheckIns(prev => prev.filter(n => n !== result.volunteerName));
-      }, 60000); // Remove from recent after 1 minute
+      }, 60000);
 
-      // Show success overlay
       setSuccessData({
         volunteerName: result.volunteerName,
         avatarUrl: result.avatarUrl,
@@ -96,15 +95,6 @@ export default function FaceCheckinKioskPage() {
     }
   }, [selectedServiceId, checkInMutation, schedules, recentCheckIns]);
 
-  const handleNotFound = useCallback(() => {
-    // The AutoFaceScanner already shows "Rosto não cadastrado"
-    // We could add additional feedback here if needed
-  }, []);
-
-  const handleDismissSuccess = useCallback(() => {
-    setSuccessData(null);
-  }, []);
-
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -117,23 +107,18 @@ export default function FaceCheckinKioskPage() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b bg-card">
+      <header className="flex items-center justify-between p-3 border-b bg-card">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/checkin')}
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate('/checkin')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-lg font-bold">Modo Totem</h1>
-            <p className="text-xs text-muted-foreground">Check-in facial automático</p>
+            <p className="text-xs text-muted-foreground">Check-in self-service</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Service selector */}
           <div className="w-64">
             {loadingServices ? (
               <p className="text-sm text-muted-foreground">Carregando...</p>
@@ -154,21 +139,15 @@ export default function FaceCheckinKioskPage() {
               <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
             )}
           </div>
-
-          {/* Fullscreen toggle */}
           <Button variant="outline" size="icon" onClick={toggleFullscreen}>
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </header>
 
       {/* Stats bar */}
       {selectedServiceId && (
-        <div className="flex items-center justify-center gap-6 py-3 bg-muted/50 border-b">
+        <div className="flex items-center justify-center gap-6 py-2 bg-muted/50 border-b">
           <div className="flex items-center gap-2 text-sm">
             <Users className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">{selectedService?.name}</span>
@@ -194,23 +173,52 @@ export default function FaceCheckinKioskPage() {
             <p className="text-xl text-muted-foreground">Selecione um culto para iniciar</p>
           </div>
         ) : (
-          <AutoFaceScanner
-            onMatch={handleMatch}
-            onNotFound={handleNotFound}
-            isProcessing={checkInMutation.isPending}
-            cooldownMs={4000}
-          />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+            <div className="px-4 pt-3">
+              <TabsList className="w-full h-14 grid grid-cols-3 rounded-xl">
+                <TabsTrigger value="list" className="text-base gap-2 h-12 rounded-lg data-[state=active]:shadow-md">
+                  <ClipboardList className="h-5 w-5" />
+                  Lista
+                </TabsTrigger>
+                <TabsTrigger value="facial" className="text-base gap-2 h-12 rounded-lg data-[state=active]:shadow-md">
+                  <Camera className="h-5 w-5" />
+                  Facial
+                </TabsTrigger>
+                <TabsTrigger value="qrcode" className="text-base gap-2 h-12 rounded-lg data-[state=active]:shadow-md">
+                  <QrCode className="h-5 w-5" />
+                  QR Code
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="list" className="flex-1 overflow-hidden mt-0">
+              <KioskNameCheckin serviceId={selectedServiceId} />
+            </TabsContent>
+
+            <TabsContent value="facial" className="flex-1 overflow-hidden mt-0">
+              <AutoFaceScanner
+                onMatch={handleFacialMatch}
+                onNotFound={() => {}}
+                isProcessing={checkInMutation.isPending}
+                cooldownMs={4000}
+              />
+            </TabsContent>
+
+            <TabsContent value="qrcode" className="flex-1 overflow-hidden mt-0">
+              <KioskQrDisplay serviceId={selectedServiceId} />
+            </TabsContent>
+          </Tabs>
         )}
       </main>
 
-      {/* Success overlay */}
+      {/* Success overlay (for facial mode) */}
       {successData && (
         <SuccessOverlay
           volunteerName={successData.volunteerName}
           avatarUrl={successData.avatarUrl}
           teamName={successData.teamName}
           positionName={successData.positionName}
-          onDismiss={handleDismissSuccess}
+          onDismiss={() => setSuccessData(null)}
           duration={3500}
         />
       )}
