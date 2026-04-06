@@ -25,7 +25,7 @@ interface SuccessData {
 
 export default function FaceCheckinKioskPage() {
   const navigate = useNavigate();
-  const { isLeader } = useAuth();
+  const { isLeader, isLoading: authLoading, roles } = useAuth();
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -94,6 +94,16 @@ export default function FaceCheckinKioskPage() {
       }
     }
   }, [selectedServiceId, checkInMutation, schedules, recentCheckIns]);
+
+  const { isLoading } = useAuth();
+
+  if (authLoading || (!isLeader && roles.length === 0)) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
