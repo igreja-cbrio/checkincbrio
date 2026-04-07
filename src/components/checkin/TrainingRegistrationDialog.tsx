@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
-import { GraduationCap, Printer, Loader2, Eye, ArrowLeft, Minus, Plus } from 'lucide-react';
+import { GraduationCap, Printer, Loader2, Eye, ArrowLeft, Minus, Plus, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { printLabel } from '@/components/checkin/LabelPrint';
