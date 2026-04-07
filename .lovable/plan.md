@@ -1,22 +1,22 @@
 
 
-# Plano: Modo Totem visível sem culto agendado
+# Plano: Corrigir impressão — imprimir apenas a etiqueta
 
 ## Problema
 
-O botão "Modo Totem" na página `/checkin` só aparece quando há um culto selecionado (`selectedServiceId`). Em dias sem culto, o botão não aparece.
+O `window.print()` no iframe está imprimindo a página inteira do navegador (com tamanho padrão A4/Letter) em vez de respeitar o tamanho da etiqueta 29mm x 90mm. O driver da Brother QL-810W não está recebendo as dimensões corretas.
 
-## Alterações
+## Solução
 
-### `src/pages/CheckinPage.tsx`
-- Remover a condição `selectedServiceId &&` que envolve o botão "Modo Totem" (linha 232), tornando-o sempre visível para líderes
+Adicionar regras CSS de impressão mais agressivas no iframe para forçar o navegador a usar exatamente o tamanho da etiqueta:
 
-### `src/pages/FaceCheckinKioskPage.tsx`
-- O conteúdo principal já mostra "Selecione um culto para iniciar" quando não há culto selecionado — isso continuará funcionando
-- O botão "Treinamento" já aparece sem culto (alteração anterior)
-- Nenhuma mudança necessária neste arquivo
+### `src/components/checkin/LabelPrint.tsx`
 
-## Resultado
+1. Adicionar `@media print` com regras que forçam `html` e `body` a ter exatamente 29mm x 90mm
+2. Adicionar `-webkit-print-color-adjust: exact` para preservar cores
+3. Remover qualquer margem/padding extra que o navegador adiciona por padrão
+4. Usar `page-break-after: avoid` e `page-break-inside: avoid` para evitar quebra de página
+5. Adicionar `size: 29mm 90mm` também no `@media print` como reforço
 
-O líder acessa o Modo Totem a qualquer momento. Sem culto selecionado, verá a tela de espera e o botão de Treinamento para testar impressão.
+Estas mudanças garantem que o conteúdo do iframe seja tratado como uma única página de 29x90mm, independente da configuração padrão da impressora.
 
