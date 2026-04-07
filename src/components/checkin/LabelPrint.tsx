@@ -85,10 +85,27 @@ const DOCUMENT_LABEL_STYLES = `
 const HOST_LABEL_STYLES = `
   #${PRINT_HOST_ID} {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    width: 90mm;
+    height: 29mm;
+    background: #fff;
+    overflow: hidden;
     opacity: 0;
     pointer-events: none;
     z-index: -1;
+  }
+  body[${PRINT_MODE_ATTRIBUTE}="active"] {
+    background: #fff !important;
+    overflow: hidden !important;
+  }
+  body[${PRINT_MODE_ATTRIBUTE}="active"] > *:not(#${PRINT_HOST_ID}) {
+    display: none !important;
+  }
+  body[${PRINT_MODE_ATTRIBUTE}="active"] #${PRINT_HOST_ID} {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 2147483647 !important;
   }
   #${PRINT_HOST_ID} * {
     margin: 0;
@@ -238,6 +255,8 @@ function ensurePrintStyles() {
         margin: 0 !important;
       }
       html, body {
+        width: 90mm !important;
+        height: 29mm !important;
         margin: 0 !important;
         padding: 0 !important;
         overflow: hidden !important;
