@@ -334,7 +334,6 @@ export default function CheckinPage() {
         onOpenChange={setTrainingDialogOpen}
         serviceId={selectedServiceId}
       />
-      )}
     </div>
   );
 }
