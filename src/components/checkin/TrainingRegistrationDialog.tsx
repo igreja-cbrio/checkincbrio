@@ -37,33 +37,33 @@ function LabelPreview({
   date: string;
   fontSize: number;
 }) {
-  // Scale: 29mm ≈ 110px, 90mm ≈ 340px at 96dpi
-  const labelW = 110;
-  const labelH = 340;
+  // Scale: 90mm ≈ 340px, 29mm ≈ 110px at 96dpi (horizontal)
+  const labelW = 340;
+  const labelH = 110;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <p className="text-xs text-muted-foreground">
-        Pré-visualização da etiqueta (29mm × 90mm) — Fonte: {fontSize}pt
+        Pré-visualização da etiqueta (90mm × 29mm) — Fonte: {fontSize}pt
       </p>
       <div
-        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-col items-center justify-center overflow-hidden"
+        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-row items-center overflow-hidden"
         style={{
           width: `${labelW}px`,
           height: `${labelH}px`,
-          padding: '10px 6px',
+          padding: '6px 10px',
         }}
       >
-        {/* Top: cross + church */}
-        <div className="flex flex-col items-center mb-2">
-          <span style={{ fontSize: '14px', lineHeight: 1 }}>✝</span>
+        {/* Left: cross + church */}
+        <div className="flex flex-col items-center mr-3 flex-shrink-0">
+          <span style={{ fontSize: '12px', lineHeight: 1 }}>✝</span>
           <span
             style={{
-              fontSize: '6px',
+              fontSize: '5px',
               fontWeight: 'bold',
               letterSpacing: '0.5px',
               color: '#333',
-              marginTop: '2px',
+              marginTop: '1px',
             }}
           >
             CBRIO
@@ -71,37 +71,37 @@ function LabelPreview({
         </div>
 
         {/* Content: name + badge + info */}
-        <div className="flex flex-col items-center text-center overflow-hidden w-full">
+        <div className="flex flex-col justify-center overflow-hidden">
           <span
             style={{
               fontSize: `${fontSize}px`,
               fontWeight: 'bold',
               textTransform: 'uppercase',
-              lineHeight: 1.15,
+              lineHeight: 1.1,
               overflow: 'hidden',
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
             }}
           >
             {volunteerName || 'NOME DO VOLUNTÁRIO'}
           </span>
           <span
             style={{
-              marginTop: '3px',
-              fontSize: '6px',
+              marginTop: '2px',
+              fontSize: '5px',
               fontWeight: 'bold',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
               border: '0.5px solid #000',
               borderRadius: '1px',
-              padding: '1px 6px',
+              padding: '1px 4px',
               display: 'inline-block',
               width: 'fit-content',
             }}
           >
             EM TREINAMENTO
           </span>
-          <span style={{ fontSize: '6.5px', color: '#555', marginTop: '2px' }}>
+          <span style={{ fontSize: '5.5px', color: '#555', marginTop: '1px' }}>
             {teamName || 'Equipe'} • {date}
           </span>
         </div>
