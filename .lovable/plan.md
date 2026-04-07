@@ -1,28 +1,32 @@
 
+Plano: isolar a impressão da etiqueta do popup
 
-# Plano: Layout horizontal da etiqueta
+Diagnóstico
+- O layout horizontal da etiqueta já existe; o problema principal agora é o mecanismo de impressão.
+- Hoje `src/components/checkin/LabelPrint.tsx` usa `window.open(..., width=600,height=300)` + `printWindow.print()`. Isso faz o navegador tratar a impressão como uma página/popup normal, então a prévia tenta imprimir o popup inteiro, não só a etiqueta.
+- No fluxo de treinamento, a impressão também acontece enquanto o diálogo ainda está no fluxo visual, o que pode reforçar esse comportamento.
 
-## Problema
+Implementação
+1. `src/components/checkin/LabelPrint.tsx`
+   - Trocar o popup por um iframe temporário invisível e fora da tela.
+   - Renderizar dentro dele um HTML mínimo contendo somente a etiqueta.
+   - Manter o tamanho real em `@page { size: 90mm 29mm; margin: 0 }` e no `html/body`.
+   - Manter o conteúdo horizontal: logo à esquerda, nome/badge/info à direita, nome em uma linha com reticências se necessário.
+   - Disparar `print()` apenas no `contentWindow` do iframe e limpar o iframe em `afterprint`/fallback.
 
-O layout atual usa 29mm de largura × 90mm de altura (vertical), o que causa quebras de linha no nome porque 29mm é muito estreito para texto. O usuário quer que o texto fique na horizontal — aproveitando os 90mm de comprimento da etiqueta como largura.
+2. `src/components/checkin/TrainingRegistrationDialog.tsx`
+   - No “Registrar”, concluir o salvamento, fechar/resetar o diálogo e só então disparar a impressão automática.
+   - O botão “Imprimir teste” continuará usando o mesmo utilitário novo, mas sem depender de popup.
 
-## Alterações
+3. `src/pages/CheckinPage.tsx`
+   - Aplicar a mesma ordem nos outros fluxos que também usam `printLabel` (ex.: check-in sem escala), para evitar o mesmo bug quando houver diálogo aberto.
 
-### `src/components/checkin/LabelPrint.tsx`
-- Inverter o `@page size` para `90mm 29mm` (largura 90mm × altura 29mm — paisagem)
-- Ajustar `html` e `body` para `width: 90mm; height: 29mm`
-- Mudar o layout do body para `flex-direction: row` com elementos lado a lado:
-  - Cruz + CBRIO à esquerda
-  - Nome + badge + equipe/data à direita
-- Reduzir padding para caber em 29mm de altura
-- Ajustar `@media print` para as mesmas dimensões
+Detalhes técnicos
+- Não vou depender do `@media print` global de `src/index.css` (A4 para relatórios); a etiqueta passará a ser impressa em um documento isolado.
+- A prévia visual do treinamento já está horizontal; no máximo haverá ajuste fino para manter o preview consistente com a impressão.
+- Isso corrige o app para imprimir somente a etiqueta. A impressora ainda precisa estar com o papel/tamanho correto configurado no driver da Brother para `90x29mm`.
 
-### `src/components/checkin/TrainingRegistrationDialog.tsx`
-- Atualizar o `LabelPreview` para refletir o layout horizontal:
-  - Largura ~340px, altura ~110px (escala proporcional)
-  - Elementos lado a lado em vez de empilhados verticalmente
-
-## Resultado
-
-A etiqueta imprime na horizontal com o texto ao longo dos 90mm, sem quebras de linha desnecessárias.
-
+Resultado esperado
+- Ao clicar em “Registrar treinamento”, a impressão mostrará somente a etiqueta.
+- O popup/formulário não aparecerá mais na impressão.
+- O texto continuará na horizontal, sem aquelas quebras de linha do layout vertical.
