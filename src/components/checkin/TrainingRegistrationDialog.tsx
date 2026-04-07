@@ -37,29 +37,26 @@ function LabelPreview({
   date: string;
   fontSize: number;
 }) {
-  // Scale: 90.3mm ≈ 341px at 96dpi, 29mm ≈ 110px — we use a ~3.78 factor
-  const labelW = 341;
-  const labelH = 110;
+  // Scale: 29mm ≈ 110px, 90mm ≈ 340px at 96dpi
+  const labelW = 110;
+  const labelH = 340;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <p className="text-xs text-muted-foreground">
-        Pré-visualização da etiqueta (90,3mm × 29mm) — Fonte: {fontSize}pt
+        Pré-visualização da etiqueta (29mm × 90mm) — Fonte: {fontSize}pt
       </p>
       <div
-        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-row items-center overflow-hidden"
+        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-col items-center justify-center overflow-hidden"
         style={{
           width: `${labelW}px`,
           height: `${labelH}px`,
-          padding: '8px 15px',
+          padding: '10px 6px',
         }}
       >
-        {/* Left: cross + church */}
-        <div
-          className="flex flex-col items-center justify-center shrink-0"
-          style={{ minWidth: '50px', marginRight: '10px' }}
-        >
-          <span style={{ fontSize: '16px', lineHeight: 1 }}>✝</span>
+        {/* Top: cross + church */}
+        <div className="flex flex-col items-center mb-2">
+          <span style={{ fontSize: '14px', lineHeight: 1 }}>✝</span>
           <span
             style={{
               fontSize: '6px',
@@ -73,8 +70,8 @@ function LabelPreview({
           </span>
         </div>
 
-        {/* Right: name + badge + info */}
-        <div className="flex flex-col justify-center overflow-hidden flex-1">
+        {/* Content: name + badge + info */}
+        <div className="flex flex-col items-center text-center overflow-hidden w-full">
           <span
             style={{
               fontSize: `${fontSize}px`,
@@ -82,8 +79,8 @@ function LabelPreview({
               textTransform: 'uppercase',
               lineHeight: 1.15,
               overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              textOverflow: 'ellipsis',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
             }}
           >
             {volunteerName || 'NOME DO VOLUNTÁRIO'}
