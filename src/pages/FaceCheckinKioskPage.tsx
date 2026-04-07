@@ -160,6 +160,7 @@ export default function FaceCheckinKioskPage() {
           <Button variant="outline" size="icon" onClick={toggleFullscreen}>
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
+        </div>
       </header>
 
       {/* Stats bar */}
