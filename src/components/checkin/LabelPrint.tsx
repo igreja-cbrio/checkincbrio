@@ -2,9 +2,10 @@ interface LabelPrintProps {
   volunteerName: string;
   teamName?: string;
   date: string;
+  fontSize?: number;
 }
 
-export function printLabel({ volunteerName, teamName, date }: LabelPrintProps) {
+export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: LabelPrintProps) {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.top = '-10000px';
@@ -19,7 +20,9 @@ export function printLabel({ volunteerName, teamName, date }: LabelPrintProps) {
     return;
   }
 
-  const teamLine = teamName ? `<div style="font-size:7pt;color:#555;margin-top:1mm;">${teamName} &bull; ${date}</div>` : `<div style="font-size:7pt;color:#555;margin-top:1mm;">${date}</div>`;
+  const teamLine = teamName
+    ? `<div class="info">${teamName} &bull; ${date}</div>`
+    : `<div class="info">${date}</div>`;
 
   doc.open();
   doc.write(`
@@ -28,7 +31,7 @@ export function printLabel({ volunteerName, teamName, date }: LabelPrintProps) {
     <head>
       <style>
         @page {
-          size: 62mm 29mm;
+          size: 90.3mm 29mm;
           margin: 0;
         }
         * {
@@ -37,56 +40,79 @@ export function printLabel({ volunteerName, teamName, date }: LabelPrintProps) {
           box-sizing: border-box;
         }
         body {
-          width: 62mm;
+          width: 90.3mm;
           height: 29mm;
           font-family: Arial, Helvetica, sans-serif;
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          padding: 2mm 4mm;
+          overflow: hidden;
+        }
+        .left {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 2mm 3mm;
-          overflow: hidden;
+          min-width: 14mm;
+          margin-right: 3mm;
+        }
+        .cross {
+          font-size: 16pt;
+          line-height: 1;
         }
         .church {
-          font-size: 7pt;
+          font-size: 6pt;
           font-weight: bold;
-          letter-spacing: 1px;
+          letter-spacing: 0.5px;
           color: #333;
+          margin-top: 0.5mm;
+        }
+        .right {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          overflow: hidden;
         }
         .name {
-          font-size: 12pt;
+          font-size: ${fontSize}pt;
           font-weight: bold;
           text-transform: uppercase;
-          margin-top: 1.5mm;
-          text-align: center;
-          line-height: 1.1;
-          max-width: 56mm;
+          line-height: 1.15;
           overflow: hidden;
-          white-space: nowrap;
           text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .badge {
-          margin-top: 1.5mm;
-          font-size: 7pt;
+          margin-top: 1mm;
+          font-size: 6pt;
           font-weight: bold;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          border: 1px solid #000;
-          border-radius: 2px;
-          padding: 0.5mm 2mm;
+          border: 0.5px solid #000;
+          border-radius: 1px;
+          padding: 0.3mm 2mm;
+          display: inline-block;
+          width: fit-content;
         }
         .info {
-          font-size: 7pt;
+          font-size: 6.5pt;
           color: #555;
-          margin-top: 1mm;
+          margin-top: 0.5mm;
         }
       </style>
     </head>
     <body>
-      <div class="church">✝ CBRIO</div>
-      <div class="name">${volunteerName}</div>
-      <div class="badge">EM TREINAMENTO</div>
-      ${teamLine}
+      <div class="left">
+        <div class="cross">✝</div>
+        <div class="church">CBRIO</div>
+      </div>
+      <div class="right">
+        <div class="name">${volunteerName}</div>
+        <div class="badge">EM TREINAMENTO</div>
+        ${teamLine}
+      </div>
     </body>
     </html>
   `);
