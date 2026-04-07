@@ -68,8 +68,10 @@ function LabelPreview({
               textTransform: 'uppercase',
               lineHeight: 1.1,
               overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              textOverflow: 'ellipsis',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical' as const,
+              wordBreak: 'break-word',
             }}
           >
             {volunteerName || 'NOME DO VOLUNTÁRIO'}
