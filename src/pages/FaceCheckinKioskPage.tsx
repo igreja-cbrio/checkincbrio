@@ -5,6 +5,7 @@ import { AutoFaceScanner, FaceMatchResult } from '@/components/checkin/AutoFaceS
 import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
 import { KioskNameCheckin } from '@/components/checkin/KioskNameCheckin';
 import { KioskQrDisplay } from '@/components/checkin/KioskQrDisplay';
+import { TrainingRegistrationDialog } from '@/components/checkin/TrainingRegistrationDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +15,7 @@ import { useServiceSchedules, useCheckIn, useUnscheduledCheckIns } from '@/hooks
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users, ClipboardList, Camera, QrCode } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users, ClipboardList, Camera, QrCode, GraduationCap } from 'lucide-react';
 
 interface SuccessData {
   volunteerName: string;
@@ -31,6 +32,7 @@ export default function FaceCheckinKioskPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [recentCheckIns, setRecentCheckIns] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('list');
+  const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
 
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules } = useServiceSchedules(selectedServiceId);
@@ -149,6 +151,12 @@ export default function FaceCheckinKioskPage() {
               <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
             )}
           </div>
+          {selectedServiceId && (
+            <Button variant="outline" size="sm" onClick={() => setTrainingDialogOpen(true)} className="gap-1.5">
+              <GraduationCap className="h-4 w-4" />
+              Treinamento
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={toggleFullscreen}>
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
@@ -232,6 +240,13 @@ export default function FaceCheckinKioskPage() {
           duration={3500}
         />
       )}
+
+      {/* Training registration dialog */}
+      <TrainingRegistrationDialog
+        open={trainingDialogOpen}
+        onOpenChange={setTrainingDialogOpen}
+        serviceId={selectedServiceId}
+      />
     </div>
   );
 }
