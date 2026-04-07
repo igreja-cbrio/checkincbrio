@@ -6,70 +6,53 @@ interface LabelPrintProps {
 }
 
 export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: LabelPrintProps) {
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) {
-    document.body.removeChild(iframe);
-    return;
-  }
+  const printWindow = window.open('', '_blank', 'width=600,height=300');
+  if (!printWindow) return;
 
   const teamLine = teamName
     ? `<div class="info">${teamName} &bull; ${date}</div>`
     : `<div class="info">${date}</div>`;
 
-  doc.open();
-  doc.write(`
+  printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
       <style>
         @page {
-          size: 29mm 90mm;
+          size: 90mm 29mm !important;
           margin: 0 !important;
-          padding: 0 !important;
         }
         * {
           margin: 0;
           padding: 0;
           box-sizing: border-box;
         }
-        html {
-          width: 29mm;
-          height: 90mm;
+        html, body {
+          width: 90mm;
+          height: 29mm;
           margin: 0 !important;
           padding: 0 !important;
+          overflow: hidden;
         }
         body {
-          width: 29mm;
-          height: 90mm;
-          margin: 0 !important;
-          padding: 3mm 2mm;
           font-family: Arial, Helvetica, sans-serif;
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
-          justify-content: center;
-          overflow: hidden;
+          padding: 1.5mm 3mm;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         @media print {
           @page {
-            size: 29mm 90mm;
+            size: 90mm 29mm !important;
             margin: 0 !important;
           }
           html, body {
-            width: 29mm !important;
-            height: 90mm !important;
+            width: 90mm !important;
+            height: 29mm !important;
             margin: 0 !important;
-            padding: 3mm 2mm !important;
+            padding: 1.5mm 3mm !important;
             overflow: hidden !important;
           }
           body {
@@ -77,62 +60,61 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
             page-break-inside: avoid;
           }
         }
-        .top {
+        .left {
           display: flex;
           flex-direction: column;
           align-items: center;
-          margin-bottom: 2mm;
+          margin-right: 3mm;
+          flex-shrink: 0;
         }
         .cross {
-          font-size: 14pt;
+          font-size: 12pt;
           line-height: 1;
         }
         .church {
-          font-size: 6pt;
+          font-size: 5pt;
           font-weight: bold;
           letter-spacing: 0.5px;
           color: #333;
-          margin-top: 0.5mm;
+          margin-top: 0.3mm;
         }
         .content {
           display: flex;
           flex-direction: column;
-          align-items: center;
-          text-align: center;
+          justify-content: center;
           overflow: hidden;
-          width: 100%;
+          flex: 1;
         }
         .name {
           font-size: ${fontSize}pt;
           font-weight: bold;
           text-transform: uppercase;
-          line-height: 1.15;
+          line-height: 1.1;
           overflow: hidden;
-          word-break: break-word;
-          overflow-wrap: break-word;
-          white-space: normal;
+          white-space: nowrap;
+          text-overflow: ellipsis;
         }
         .badge {
-          margin-top: 1mm;
-          font-size: 6pt;
+          margin-top: 0.5mm;
+          font-size: 5pt;
           font-weight: bold;
           text-transform: uppercase;
           letter-spacing: 0.5px;
           border: 0.5px solid #000;
           border-radius: 1px;
-          padding: 0.3mm 2mm;
+          padding: 0.2mm 1.5mm;
           display: inline-block;
           width: fit-content;
         }
         .info {
-          font-size: 6.5pt;
+          font-size: 5.5pt;
           color: #555;
-          margin-top: 0.5mm;
+          margin-top: 0.3mm;
         }
       </style>
     </head>
     <body>
-      <div class="top">
+      <div class="left">
         <div class="cross">✝</div>
         <div class="church">CBRIO</div>
       </div>
@@ -144,13 +126,14 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
     </body>
     </html>
   `);
-  doc.close();
+  printWindow.document.close();
+  printWindow.focus();
 
-  iframe.onload = () => {
+  printWindow.onload = () => {
     setTimeout(() => {
-      iframe.contentWindow?.print();
+      printWindow.print();
       setTimeout(() => {
-        document.body.removeChild(iframe);
+        printWindow.close();
       }, 1000);
     }, 250);
   };
