@@ -124,7 +124,11 @@ export function TrainingRegistrationDialog({
 
   const handleReprint = () => {
     if (!lastPrintedLabel) return;
-    printLabel(lastPrintedLabel);
+    const started = printLabel(lastPrintedLabel);
+    if (!started) {
+      toast.error('Não foi possível iniciar a impressão.');
+      return;
+    }
     toast.info(`Reimprimindo etiqueta: ${lastPrintedLabel.volunteerName}`);
   };
 
@@ -168,11 +172,9 @@ export function TrainingRegistrationDialog({
       forceUpdate((n) => n + 1);
       onOpenChange(false);
 
-      // Print AFTER dialog is closed
+      // Print right away so Android keeps the user gesture alive
       if (wantPrint) {
-        setTimeout(() => {
-          printLabel(printData);
-        }, 300);
+        printLabel(printData);
       }
     } catch (error) {
       toast.error('Erro ao registrar treinamento');
@@ -246,13 +248,15 @@ export function TrainingRegistrationDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  printLabel({
+                  const started = printLabel({
                     volunteerName: name.trim() || 'TESTE IMPRESSÃO',
                     teamName: teamName.trim() || 'Equipe Teste',
                     date: todayFormatted,
                     fontSize,
                   });
-                  toast.info('Impressão de teste enviada');
+                  if (!started) {
+                    toast.error('Não foi possível iniciar a impressão.');
+                  }
                 }}
               >
                 <Printer className="h-4 w-4 mr-1" />

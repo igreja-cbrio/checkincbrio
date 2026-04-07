@@ -7,11 +7,193 @@ interface LabelPrintProps {
   fontSize?: number;
 }
 
-function buildLabelHtml({ volunteerName, teamName, date, fontSize = 14 }: LabelPrintProps): string {
-  const teamLine = teamName
-    ? `<div class="info">${teamName} &bull; ${date}</div>`
-    : `<div class="info">${date}</div>`;
+const PRINT_HOST_ID = 'label-print-host';
+const PRINT_STYLE_ID = 'label-print-style';
+const PRINT_MODE_ATTRIBUTE = 'data-label-print';
 
+const DOCUMENT_LABEL_STYLES = `
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  .label-sheet {
+    width: 90mm;
+    height: 29mm;
+    background: #fff;
+    overflow: hidden;
+  }
+  .label-body {
+    width: 90mm;
+    height: 29mm;
+    font-family: Arial, Helvetica, sans-serif;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 1.5mm 3mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 3mm;
+    flex-shrink: 0;
+  }
+  .logo-img {
+    height: 8mm;
+    width: auto;
+    object-fit: contain;
+  }
+  .content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    flex: 1;
+  }
+  .name {
+    font-weight: bold;
+    text-transform: uppercase;
+    line-height: 1.1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+  }
+  .badge {
+    margin-top: 0.5mm;
+    font-size: 5pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 0.5px solid #000;
+    border-radius: 1px;
+    padding: 0.2mm 1.5mm;
+    display: inline-block;
+    width: fit-content;
+  }
+  .info {
+    font-size: 5.5pt;
+    color: #555;
+    margin-top: 0.3mm;
+  }
+`;
+
+const HOST_LABEL_STYLES = `
+  #${PRINT_HOST_ID} {
+    position: fixed;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+  #${PRINT_HOST_ID} * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  #${PRINT_HOST_ID} .label-sheet {
+    width: 90mm;
+    height: 29mm;
+    background: #fff;
+    overflow: hidden;
+  }
+  #${PRINT_HOST_ID} .label-body {
+    width: 90mm;
+    height: 29mm;
+    font-family: Arial, Helvetica, sans-serif;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 1.5mm 3mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #${PRINT_HOST_ID} .left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 3mm;
+    flex-shrink: 0;
+  }
+  #${PRINT_HOST_ID} .logo-img {
+    height: 8mm;
+    width: auto;
+    object-fit: contain;
+  }
+  #${PRINT_HOST_ID} .content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    flex: 1;
+  }
+  #${PRINT_HOST_ID} .name {
+    font-weight: bold;
+    text-transform: uppercase;
+    line-height: 1.1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+  }
+  #${PRINT_HOST_ID} .badge {
+    margin-top: 0.5mm;
+    font-size: 5pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 0.5px solid #000;
+    border-radius: 1px;
+    padding: 0.2mm 1.5mm;
+    display: inline-block;
+    width: fit-content;
+  }
+  #${PRINT_HOST_ID} .info {
+    font-size: 5.5pt;
+    color: #555;
+    margin-top: 0.3mm;
+  }
+`;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildLabelMarkup({ volunteerName, teamName, date, fontSize = 14 }: LabelPrintProps): string {
+  const safeVolunteerName = escapeHtml(volunteerName);
+  const safeDate = escapeHtml(date);
+  const safeTeamName = teamName ? escapeHtml(teamName) : '';
+  const teamLine = safeTeamName
+    ? `<div class="info">${safeTeamName} &bull; ${safeDate}</div>`
+    : `<div class="info">${safeDate}</div>`;
+
+  return `
+    <div class="label-sheet">
+      <div class="label-body">
+        <div class="left">
+          <img src="${LOGO_BASE64}" class="logo-img" alt="CBRio" />
+        </div>
+        <div class="content">
+          <div class="name" style="font-size: ${fontSize}pt;">${safeVolunteerName}</div>
+          <div class="badge">EM TREINAMENTO</div>
+          ${teamLine}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildLabelHtml(props: LabelPrintProps): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -21,181 +203,140 @@ function buildLabelHtml({ volunteerName, teamName, date, fontSize = 14 }: LabelP
       size: 90mm 29mm !important;
       margin: 0 !important;
     }
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
     html, body {
       width: 90mm;
       height: 29mm;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden;
+      background: #fff;
     }
     body {
-      font-family: Arial, Helvetica, sans-serif;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      padding: 1.5mm 3mm;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      page-break-after: avoid;
+      page-break-inside: avoid;
     }
+    ${DOCUMENT_LABEL_STYLES}
+  </style>
+</head>
+<body>
+  ${buildLabelMarkup(props)}
+</body>
+</html>`;
+}
+
+function ensurePrintStyles() {
+  let style = document.getElementById(PRINT_STYLE_ID) as HTMLStyleElement | null;
+  if (style) return;
+
+  style = document.createElement('style');
+  style.id = PRINT_STYLE_ID;
+  style.textContent = `
+    ${HOST_LABEL_STYLES}
     @media print {
       @page {
         size: 90mm 29mm !important;
         margin: 0 !important;
       }
       html, body {
-        width: 90mm !important;
-        height: 29mm !important;
         margin: 0 !important;
-        padding: 1.5mm 3mm !important;
+        padding: 0 !important;
         overflow: hidden !important;
+        background: #fff !important;
       }
-      body {
-        page-break-after: avoid;
-        page-break-inside: avoid;
+      body[${PRINT_MODE_ATTRIBUTE}="active"] > *:not(#${PRINT_HOST_ID}) {
+        display: none !important;
+      }
+      body[${PRINT_MODE_ATTRIBUTE}="active"] #${PRINT_HOST_ID} {
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 2147483647 !important;
       }
     }
-    .left {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-right: 3mm;
-      flex-shrink: 0;
-    }
-    .logo-img {
-      height: 8mm;
-      width: auto;
-      object-fit: contain;
-    }
-    .content {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      overflow: hidden;
-      flex: 1;
-    }
-    .name {
-      font-size: ${fontSize}pt;
-      font-weight: bold;
-      text-transform: uppercase;
-      line-height: 1.1;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      word-break: break-word;
-    }
-    .badge {
-      margin-top: 0.5mm;
-      font-size: 5pt;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      border: 0.5px solid #000;
-      border-radius: 1px;
-      padding: 0.2mm 1.5mm;
-      display: inline-block;
-      width: fit-content;
-    }
-    .info {
-      font-size: 5.5pt;
-      color: #555;
-      margin-top: 0.3mm;
-    }
-  </style>
-</head>
-<body>
-  <div class="left">
-    <img src="${LOGO_BASE64}" class="logo-img" />
-  </div>
-  <div class="content">
-    <div class="name">${volunteerName}</div>
-    <div class="badge">EM TREINAMENTO</div>
-    ${teamLine}
-  </div>
-</body>
-</html>`;
+  `;
+
+  document.head.appendChild(style);
 }
 
-function printViaIframe(html: string): boolean {
+function cleanupPrintHost() {
+  document.body.removeAttribute(PRINT_MODE_ATTRIBUTE);
+  const host = document.getElementById(PRINT_HOST_ID);
+  if (host) {
+    host.remove();
+  }
+}
+
+function printInCurrentWindow(props: LabelPrintProps): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || typeof window.print !== 'function') {
+    return false;
+  }
+
   try {
-    const iframe = document.createElement('iframe');
-    // Use off-screen positioning with real dimensions — hidden/zero-size iframes
-    // silently fail to trigger print() on Android Chrome
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:360px;height:120px;border:none;opacity:0;pointer-events:none;';
-    document.body.appendChild(iframe);
+    ensurePrintStyles();
+    cleanupPrintHost();
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!doc) {
-      document.body.removeChild(iframe);
-      return false;
-    }
+    const host = document.createElement('div');
+    host.id = PRINT_HOST_ID;
+    host.setAttribute('aria-hidden', 'true');
+    host.innerHTML = buildLabelMarkup(props);
+    document.body.appendChild(host);
+    document.body.setAttribute(PRINT_MODE_ATTRIBUTE, 'active');
 
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    // Guard against double-printing (onload + setTimeout)
-    let printed = false;
-    const tryPrint = () => {
-      if (printed) return;
-      printed = true;
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch {
-        printViaWindow(html);
-      }
-      setTimeout(() => {
-        try { document.body.removeChild(iframe); } catch { /* already removed */ }
-      }, 3000);
+    const cleanup = () => {
+      cleanupPrintHost();
+      window.removeEventListener('afterprint', cleanup);
     };
 
-    if (iframe.contentWindow) {
-      iframe.contentWindow.onload = tryPrint;
-    }
-    setTimeout(tryPrint, 500);
+    window.addEventListener('afterprint', cleanup, { once: true });
+    host.getBoundingClientRect();
+    window.focus();
+    window.print();
+    window.setTimeout(cleanup, 2000);
 
     return true;
   } catch {
+    cleanupPrintHost();
     return false;
   }
 }
 
-function printViaWindow(html: string) {
+function printViaWindow(html: string): boolean {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     alert('Não foi possível abrir a janela de impressão. Verifique se popups estão permitidos.');
-    return;
+    return false;
   }
 
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
 
-  setTimeout(() => {
+  let printed = false;
+  const tryPrint = () => {
+    if (printed) return;
+    printed = true;
+
     try {
       printWindow.focus();
       printWindow.print();
     } catch {
       // ignore
     }
-  }, 500);
+  };
 
+  printWindow.onload = tryPrint;
+  window.setTimeout(tryPrint, 250);
   printWindow.onafterprint = () => {
     printWindow.close();
   };
+
+  return true;
 }
 
-export function printLabel(props: LabelPrintProps) {
-  const html = buildLabelHtml(props);
-
-  const success = printViaIframe(html);
-  if (!success) {
-    printViaWindow(html);
+export function printLabel(props: LabelPrintProps): boolean {
+  const success = printInCurrentWindow(props);
+  if (success) {
+    return true;
   }
+
+  return printViaWindow(buildLabelHtml(props));
 }
