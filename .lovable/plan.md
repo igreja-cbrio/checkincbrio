@@ -1,29 +1,39 @@
 
 
-# Plano: Corrigir impressão — usar nova janela isolada
+# Plano: Simplificar fluxo de impressão de etiquetas
 
-## Diagnóstico
+## Problema
 
-O problema é que em iPad/iOS Safari, `iframe.contentWindow.print()` não funciona como esperado — ele acaba imprimindo a página principal (o popup/dialog) em vez do conteúdo do iframe. Isso é uma limitação conhecida do Safari mobile.
+A abordagem atual com `window.open('', '_blank')` causa problemas em tablets Android:
+1. A nova aba fica carregando infinitamente após a impressão
+2. `onload` não dispara de forma confiável com `document.write`
+3. O fallback de 800ms pode disparar `print()` duas vezes
+4. O usuário precisa fechar a aba manualmente
 
 ## Solução
 
-Trocar a abordagem de iframe oculto por `window.open()` com um documento HTML completo e auto-impressão. A diferença da tentativa anterior é que:
-1. A nova janela será aberta com `about:blank`, o HTML será injetado via `document.write`, e `window.print()` será chamado **dentro da nova janela**
-2. A nova janela será fechada automaticamente após a impressão
-3. O diálogo será fechado **antes** de abrir a janela de impressão
+Trocar `window.open` por um **iframe oculto inserido no próprio documento**, mas usando `document.write` no iframe (não `src`), com uma abordagem mais robusta que funcione em Android:
+
+1. Criar um `<iframe>` invisível no body
+2. Injetar o HTML via `contentDocument.write()`
+3. Aguardar o conteúdo carregar, chamar `contentWindow.focus()` + `contentWindow.print()`
+4. Remover o iframe após a impressão (com timeout de segurança)
+5. Se `contentWindow.print()` falhar (como no iOS Safari), usar `window.open` como fallback
 
 ## Alteração
 
 ### `src/components/checkin/LabelPrint.tsx`
-- Remover toda a lógica do iframe
-- Usar `window.open('', '_blank')` para abrir uma janela/aba nova
-- Escrever o HTML da etiqueta com `document.write()`
-- Adicionar um script inline no HTML que chama `window.print()` automaticamente após carregar e fecha a janela ao terminar (`window.onafterprint = () => window.close()`)
-- Manter todo o CSS de `@page { size: 90mm 29mm }` dentro do documento da nova janela
-- Incluir `<title>Etiqueta</title>` para que a prévia de impressão mostre um nome limpo
+
+- Criar função `printViaIframe(html)` como método principal:
+  - Cria iframe com `style="position:fixed; width:0; height:0; border:none; visibility:hidden"`
+  - Usa `iframe.contentDocument.write(html)` + `close()`
+  - Chama `iframe.contentWindow.print()` após um pequeno delay
+  - Remove o iframe após 2s (tempo suficiente para o diálogo de impressão)
+- Manter `printViaWindow(html)` como fallback (código atual simplificado, sem o setTimeout duplicado)
+- Tentar iframe primeiro; se falhar (erro ou bloqueio), cair no fallback de window.open
+- Remover o setTimeout de 800ms duplicado que causa double-print
 
 ## Resultado
 
-A impressão abrirá uma aba/janela contendo **apenas** a etiqueta, sem nenhum elemento do app. O diálogo de impressão do navegador mostrará somente o conteúdo 90x29mm.
+Impressão direta sem abrir nova aba. O diálogo de impressão aparece sobre o app e, ao fechar, tudo volta ao normal sem páginas penduradas.
 
