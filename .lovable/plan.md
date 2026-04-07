@@ -1,32 +1,24 @@
 
-Plano: isolar a impressão da etiqueta do popup
 
-Diagnóstico
-- O layout horizontal da etiqueta já existe; o problema principal agora é o mecanismo de impressão.
-- Hoje `src/components/checkin/LabelPrint.tsx` usa `window.open(..., width=600,height=300)` + `printWindow.print()`. Isso faz o navegador tratar a impressão como uma página/popup normal, então a prévia tenta imprimir o popup inteiro, não só a etiqueta.
-- No fluxo de treinamento, a impressão também acontece enquanto o diálogo ainda está no fluxo visual, o que pode reforçar esse comportamento.
+# Plano: Trocar a cruz pela logo da CBRio na etiqueta
 
-Implementação
-1. `src/components/checkin/LabelPrint.tsx`
-   - Trocar o popup por um iframe temporário invisível e fora da tela.
-   - Renderizar dentro dele um HTML mínimo contendo somente a etiqueta.
-   - Manter o tamanho real em `@page { size: 90mm 29mm; margin: 0 }` e no `html/body`.
-   - Manter o conteúdo horizontal: logo à esquerda, nome/badge/info à direita, nome em uma linha com reticências se necessário.
-   - Disparar `print()` apenas no `contentWindow` do iframe e limpar o iframe em `afterprint`/fallback.
+## Alterações
 
-2. `src/components/checkin/TrainingRegistrationDialog.tsx`
-   - No “Registrar”, concluir o salvamento, fechar/resetar o diálogo e só então disparar a impressão automática.
-   - O botão “Imprimir teste” continuará usando o mesmo utilitário novo, mas sem depender de popup.
+### 1. Copiar a imagem para o projeto
+- Copiar `user-uploads://Logo_CBRio_-_ICONE_NOVA_AZUL.png` para `public/images/logo-cbrio.png`
 
-3. `src/pages/CheckinPage.tsx`
-   - Aplicar a mesma ordem nos outros fluxos que também usam `printLabel` (ex.: check-in sem escala), para evitar o mesmo bug quando houver diálogo aberto.
+### 2. `src/components/checkin/LabelPrint.tsx`
+- Substituir o `<div class="cross">✝</div>` por uma tag `<img>` que carrega o logo como **base64 inline** (data URI). Isso é necessário porque o iframe de impressão não tem acesso garantido a URLs relativas do app.
+- Converter a imagem para base64 em tempo de build ou embuti-la diretamente no HTML gerado.
+- Alternativa mais simples: como a imagem precisa ser embutida no HTML do iframe, vou importar a imagem como base64 no componente e injetá-la no template HTML.
+- Ajustar o CSS `.cross` para `.logo img` com tamanho adequado (~8mm de altura para caber na etiqueta de 29mm).
 
-Detalhes técnicos
-- Não vou depender do `@media print` global de `src/index.css` (A4 para relatórios); a etiqueta passará a ser impressa em um documento isolado.
-- A prévia visual do treinamento já está horizontal; no máximo haverá ajuste fino para manter o preview consistente com a impressão.
-- Isso corrige o app para imprimir somente a etiqueta. A impressora ainda precisa estar com o papel/tamanho correto configurado no driver da Brother para `90x29mm`.
+### 3. `src/components/checkin/TrainingRegistrationDialog.tsx`
+- Atualizar o `LabelPreview` para mostrar a imagem do logo em vez do caractere `✝`.
+- Importar a imagem via `import logo from "@/assets/logo-cbrio.png"` ou referenciar de `/images/logo-cbrio.png`.
 
-Resultado esperado
-- Ao clicar em “Registrar treinamento”, a impressão mostrará somente a etiqueta.
-- O popup/formulário não aparecerá mais na impressão.
-- O texto continuará na horizontal, sem aquelas quebras de linha do layout vertical.
+### Detalhes técnicos
+- Para o iframe de impressão: a imagem será convertida para data URI (base64) para garantir que apareça mesmo em contexto isolado.
+- Para o preview: usará import normal do React.
+- A imagem terá ~8mm de altura no print e ~24px no preview, mantendo proporção.
+
