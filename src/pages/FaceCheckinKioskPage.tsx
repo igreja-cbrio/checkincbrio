@@ -32,6 +32,7 @@ export default function FaceCheckinKioskPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [recentCheckIns, setRecentCheckIns] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('list');
+  const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
 
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules } = useServiceSchedules(selectedServiceId);
