@@ -147,14 +147,11 @@ export function TrainingRegistrationDialog({
 
       toast.success(`Treinamento registrado: ${name.trim()}`);
 
-      if (shouldPrint) {
-        printLabel({
-          volunteerName: name.trim(),
-          teamName: teamName.trim(),
-          date: todayFormatted,
-          fontSize,
-        });
-      }
+      // Capture values before resetting
+      const printName = name.trim();
+      const printTeam = teamName.trim();
+      const printFontSize = fontSize;
+      const wantPrint = shouldPrint;
 
       queryClient.invalidateQueries({ queryKey: ['training-checkins'] });
       setName('');
@@ -162,6 +159,18 @@ export function TrainingRegistrationDialog({
       setPhone('');
       setShowPreview(false);
       onOpenChange(false);
+
+      // Print AFTER dialog is closed so the browser only prints the label iframe
+      if (wantPrint) {
+        setTimeout(() => {
+          printLabel({
+            volunteerName: printName,
+            teamName: printTeam,
+            date: todayFormatted,
+            fontSize: printFontSize,
+          });
+        }, 300);
+      }
     } catch (error) {
       toast.error('Erro ao registrar treinamento');
     } finally {
