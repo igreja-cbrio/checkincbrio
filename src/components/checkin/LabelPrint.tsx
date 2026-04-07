@@ -123,59 +123,34 @@ function buildLabelHtml({ volunteerName, teamName, date, fontSize = 14 }: LabelP
 export function printLabel(props: LabelPrintProps) {
   const html = buildLabelHtml(props);
 
-  // Create a hidden iframe so the print targets ONLY the label document,
-  // not the parent page or any open dialogs.
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  iframe.style.visibility = 'hidden';
-  document.body.appendChild(iframe);
-
-  const cleanup = () => {
-    try {
-      document.body.removeChild(iframe);
-    } catch {
-      // already removed
-    }
-  };
-
-  const iframeWindow = iframe.contentWindow;
-  if (!iframeWindow) {
-    cleanup();
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Não foi possível abrir a janela de impressão. Verifique se popups estão permitidos.');
     return;
   }
 
-  const doc = iframeWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 
-  // Wait for content to render, then print
-  iframe.onload = () => {
+  // Auto-print after content loads
+  printWindow.onload = () => {
     setTimeout(() => {
-      try {
-        iframeWindow.focus();
-        iframeWindow.print();
-      } catch {
-        // fallback: ignore
-      }
-      // Clean up after print dialog closes
-      setTimeout(cleanup, 2000);
-    }, 200);
+      printWindow.print();
+    }, 300);
   };
 
-  // Fallback: if onload doesn't fire (some browsers with srcdoc-less iframes)
+  // Close window after printing
+  printWindow.onafterprint = () => {
+    printWindow.close();
+  };
+
+  // Fallback for browsers where onload doesn't fire reliably
   setTimeout(() => {
     try {
-      iframeWindow.focus();
-      iframeWindow.print();
+      printWindow.print();
     } catch {
       // ignore
     }
-    setTimeout(cleanup, 2000);
-  }, 500);
+  }, 800);
 }
