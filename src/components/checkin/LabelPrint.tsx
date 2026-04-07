@@ -32,23 +32,50 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
       <style>
         @page {
           size: 29mm 90mm;
-          margin: 0;
+          margin: 0 !important;
+          padding: 0 !important;
         }
         * {
           margin: 0;
           padding: 0;
           box-sizing: border-box;
         }
+        html {
+          width: 29mm;
+          height: 90mm;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
         body {
           width: 29mm;
           height: 90mm;
+          margin: 0 !important;
+          padding: 3mm 2mm;
           font-family: Arial, Helvetica, sans-serif;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 3mm 2mm;
           overflow: hidden;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        @media print {
+          @page {
+            size: 29mm 90mm;
+            margin: 0 !important;
+          }
+          html, body {
+            width: 29mm !important;
+            height: 90mm !important;
+            margin: 0 !important;
+            padding: 3mm 2mm !important;
+            overflow: hidden !important;
+          }
+          body {
+            page-break-after: avoid;
+            page-break-inside: avoid;
+          }
         }
         .top {
           display: flex;
