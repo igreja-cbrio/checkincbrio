@@ -56,18 +56,7 @@ function LabelPreview({
       >
         {/* Left: cross + church */}
         <div className="flex flex-col items-center mr-3 flex-shrink-0">
-          <span style={{ fontSize: '12px', lineHeight: 1 }}>✝</span>
-          <span
-            style={{
-              fontSize: '5px',
-              fontWeight: 'bold',
-              letterSpacing: '0.5px',
-              color: '#333',
-              marginTop: '1px',
-            }}
-          >
-            CBRIO
-          </span>
+          <img src="/images/logo-cbrio.png" alt="CBRio" style={{ height: '24px', width: 'auto', objectFit: 'contain' }} />
         </div>
 
         {/* Content: name + badge + info */}
