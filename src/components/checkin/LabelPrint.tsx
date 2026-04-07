@@ -31,7 +31,7 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
     <head>
       <style>
         @page {
-          size: 90.3mm 29mm;
+          size: 29mm 90mm;
           margin: 0;
         }
         * {
@@ -40,25 +40,24 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
           box-sizing: border-box;
         }
         body {
-          width: 90.3mm;
-          height: 29mm;
+          width: 29mm;
+          height: 90mm;
           font-family: Arial, Helvetica, sans-serif;
-          display: flex;
-          flex-direction: row;
-          align-items: center;
-          padding: 2mm 4mm;
-          overflow: hidden;
-        }
-        .left {
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          min-width: 14mm;
-          margin-right: 3mm;
+          padding: 3mm 2mm;
+          overflow: hidden;
+        }
+        .top {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 2mm;
         }
         .cross {
-          font-size: 16pt;
+          font-size: 14pt;
           line-height: 1;
         }
         .church {
@@ -68,12 +67,13 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
           color: #333;
           margin-top: 0.5mm;
         }
-        .right {
-          flex: 1;
+        .content {
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          align-items: center;
+          text-align: center;
           overflow: hidden;
+          width: 100%;
         }
         .name {
           font-size: ${fontSize}pt;
@@ -81,8 +81,9 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
           text-transform: uppercase;
           line-height: 1.15;
           overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          white-space: normal;
         }
         .badge {
           margin-top: 1mm;
@@ -104,11 +105,11 @@ export function printLabel({ volunteerName, teamName, date, fontSize = 14 }: Lab
       </style>
     </head>
     <body>
-      <div class="left">
+      <div class="top">
         <div class="cross">✝</div>
         <div class="church">CBRIO</div>
       </div>
-      <div class="right">
+      <div class="content">
         <div class="name">${volunteerName}</div>
         <div class="badge">EM TREINAMENTO</div>
         ${teamLine}
