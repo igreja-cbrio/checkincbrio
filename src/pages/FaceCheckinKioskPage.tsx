@@ -240,6 +240,13 @@ export default function FaceCheckinKioskPage() {
           duration={3500}
         />
       )}
+
+      {/* Training registration dialog */}
+      <TrainingRegistrationDialog
+        open={trainingDialogOpen}
+        onOpenChange={setTrainingDialogOpen}
+        serviceId={selectedServiceId}
+      />
     </div>
   );
 }
