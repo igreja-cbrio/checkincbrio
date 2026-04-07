@@ -15,7 +15,7 @@ import { useServiceSchedules, useCheckIn, useUnscheduledCheckIns } from '@/hooks
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users, ClipboardList, Camera, QrCode } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertTriangle, Maximize2, Minimize2, Users, ClipboardList, Camera, QrCode, GraduationCap } from 'lucide-react';
 
 interface SuccessData {
   volunteerName: string;
