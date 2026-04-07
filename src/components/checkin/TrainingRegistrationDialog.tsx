@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { GraduationCap, Printer, Loader2, Eye, ArrowLeft } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { GraduationCap, Printer, Loader2, Eye, ArrowLeft, Minus, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { printLabel } from '@/components/checkin/LabelPrint';
@@ -25,50 +26,88 @@ interface TrainingRegistrationDialogProps {
   serviceId: string;
 }
 
-function LabelPreview({ volunteerName, teamName, date }: { volunteerName: string; teamName: string; date: string }) {
+function LabelPreview({
+  volunteerName,
+  teamName,
+  date,
+  fontSize,
+}: {
+  volunteerName: string;
+  teamName: string;
+  date: string;
+  fontSize: number;
+}) {
+  // Scale: 90.3mm ≈ 341px at 96dpi, 29mm ≈ 110px — we use a ~3.78 factor
+  const labelW = 341;
+  const labelH = 110;
+
   return (
     <div className="flex flex-col items-center gap-2">
-      <p className="text-xs text-muted-foreground">Pré-visualização da etiqueta (62mm × 29mm)</p>
+      <p className="text-xs text-muted-foreground">
+        Pré-visualização da etiqueta (90,3mm × 29mm) — Fonte: {fontSize}pt
+      </p>
       <div
-        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-col items-center justify-center overflow-hidden"
-        style={{ width: '248px', height: '116px', padding: '8px 12px' }}
+        className="border-2 border-dashed border-muted-foreground/30 rounded-md bg-white text-black flex flex-row items-center overflow-hidden"
+        style={{
+          width: `${labelW}px`,
+          height: `${labelH}px`,
+          padding: '8px 15px',
+        }}
       >
-        <span style={{ fontSize: '7px', fontWeight: 'bold', letterSpacing: '1px', color: '#333' }}>
-          ✝ CBRIO
-        </span>
-        <span
-          style={{
-            fontSize: '13px',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            marginTop: '4px',
-            textAlign: 'center',
-            lineHeight: 1.1,
-            maxWidth: '220px',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-          }}
+        {/* Left: cross + church */}
+        <div
+          className="flex flex-col items-center justify-center shrink-0"
+          style={{ minWidth: '50px', marginRight: '10px' }}
         >
-          {volunteerName || 'NOME DO VOLUNTÁRIO'}
-        </span>
-        <span
-          style={{
-            marginTop: '4px',
-            fontSize: '7px',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-            border: '1px solid #000',
-            borderRadius: '2px',
-            padding: '1px 6px',
-          }}
-        >
-          EM TREINAMENTO
-        </span>
-        <span style={{ fontSize: '7px', color: '#555', marginTop: '3px' }}>
-          {teamName || 'Equipe'} • {date}
-        </span>
+          <span style={{ fontSize: '16px', lineHeight: 1 }}>✝</span>
+          <span
+            style={{
+              fontSize: '6px',
+              fontWeight: 'bold',
+              letterSpacing: '0.5px',
+              color: '#333',
+              marginTop: '2px',
+            }}
+          >
+            CBRIO
+          </span>
+        </div>
+
+        {/* Right: name + badge + info */}
+        <div className="flex flex-col justify-center overflow-hidden flex-1">
+          <span
+            style={{
+              fontSize: `${fontSize}px`,
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              lineHeight: 1.15,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {volunteerName || 'NOME DO VOLUNTÁRIO'}
+          </span>
+          <span
+            style={{
+              marginTop: '3px',
+              fontSize: '6px',
+              fontWeight: 'bold',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              border: '0.5px solid #000',
+              borderRadius: '1px',
+              padding: '1px 6px',
+              display: 'inline-block',
+              width: 'fit-content',
+            }}
+          >
+            EM TREINAMENTO
+          </span>
+          <span style={{ fontSize: '6.5px', color: '#555', marginTop: '2px' }}>
+            {teamName || 'Equipe'} • {date}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -87,6 +126,7 @@ export function TrainingRegistrationDialog({
   const [shouldPrint, setShouldPrint] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [fontSize, setFontSize] = useState(14);
 
   const todayFormatted = format(new Date(), 'dd/MM/yyyy');
 
@@ -115,6 +155,7 @@ export function TrainingRegistrationDialog({
           volunteerName: name.trim(),
           teamName: teamName.trim(),
           date: todayFormatted,
+          fontSize,
         });
       }
 
@@ -148,11 +189,67 @@ export function TrainingRegistrationDialog({
 
         {showPreview ? (
           <div className="flex flex-col items-center gap-4 py-4">
-            <LabelPreview volunteerName={name} teamName={teamName} date={todayFormatted} />
-            <Button variant="ghost" size="sm" onClick={() => setShowPreview(false)}>
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Voltar ao formulário
-            </Button>
+            <LabelPreview
+              volunteerName={name}
+              teamName={teamName}
+              date={todayFormatted}
+              fontSize={fontSize}
+            />
+
+            {/* Font size control */}
+            <div className="w-full max-w-xs space-y-2">
+              <Label className="text-sm">Tamanho da fonte do nome</Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setFontSize((prev) => Math.max(8, prev - 1))}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <Slider
+                  value={[fontSize]}
+                  onValueChange={([v]) => setFontSize(v)}
+                  min={8}
+                  max={24}
+                  step={1}
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setFontSize((prev) => Math.min(24, prev + 1))}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+                <span className="text-sm font-mono w-8 text-center">{fontSize}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowPreview(false)}>
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Voltar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  printLabel({
+                    volunteerName: name.trim() || 'TESTE IMPRESSÃO',
+                    teamName: teamName.trim() || 'Equipe Teste',
+                    date: todayFormatted,
+                    fontSize,
+                  });
+                  toast.info('Impressão de teste enviada');
+                }}
+              >
+                <Printer className="h-4 w-4 mr-1" />
+                Imprimir teste
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4 py-2">
@@ -204,35 +301,23 @@ export function TrainingRegistrationDialog({
                   Imprimir etiqueta
                 </label>
               </div>
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    printLabel({
-                      volunteerName: 'TESTE IMPRESSÃO',
-                      teamName: 'Equipe Teste',
-                      date: todayFormatted,
-                    });
-                    toast.info('Impressão de teste enviada');
-                  }}
-                >
-                  <Printer className="h-4 w-4 mr-1" />
-                  Teste
-                </Button>
-                {name.trim() && (
-                  <Button variant="ghost" size="sm" onClick={() => setShowPreview(true)}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    Ver etiqueta
-                  </Button>
-                )}
-              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowPreview(true)}>
+                <Eye className="h-4 w-4 mr-1" />
+                Ver etiqueta
+              </Button>
             </div>
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => { setShowPreview(false); onOpenChange(false); }} disabled={isSubmitting}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowPreview(false);
+              onOpenChange(false);
+            }}
+            disabled={isSubmitting}
+          >
             Cancelar
           </Button>
           {!showPreview && (
