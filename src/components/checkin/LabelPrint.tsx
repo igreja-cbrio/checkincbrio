@@ -139,26 +139,25 @@ function printViaIframe(html: string): boolean {
     doc.write(html);
     doc.close();
 
-    // Wait for content to render, then print
+    // Guard against double-printing (onload + setTimeout)
+    let printed = false;
     const tryPrint = () => {
+      if (printed) return;
+      printed = true;
       try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
       } catch {
-        // If iframe print fails, fall back to window.open
         printViaWindow(html);
       }
-      // Cleanup after print dialog
       setTimeout(() => {
         try { document.body.removeChild(iframe); } catch { /* already removed */ }
       }, 3000);
     };
 
-    // Use onload for reliability, with timeout fallback
     if (iframe.contentWindow) {
       iframe.contentWindow.onload = tryPrint;
     }
-    // Fallback if onload doesn't fire (common with document.write)
     setTimeout(tryPrint, 500);
 
     return true;
