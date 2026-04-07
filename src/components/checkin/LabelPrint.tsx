@@ -124,7 +124,9 @@ function buildLabelHtml({ volunteerName, teamName, date, fontSize = 14 }: LabelP
 function printViaIframe(html: string): boolean {
   try {
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;width:0;height:0;border:none;visibility:hidden;';
+    // Use off-screen positioning with real dimensions — hidden/zero-size iframes
+    // silently fail to trigger print() on Android Chrome
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:360px;height:120px;border:none;opacity:0;pointer-events:none;';
     document.body.appendChild(iframe);
 
     const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -137,23 +139,27 @@ function printViaIframe(html: string): boolean {
     doc.write(html);
     doc.close();
 
-    // Small delay to let content render before printing
-    setTimeout(() => {
+    // Wait for content to render, then print
+    const tryPrint = () => {
       try {
         iframe.contentWindow?.focus();
         iframe.contentWindow?.print();
       } catch {
-        // If print fails in iframe, will fall back to window.open
+        // If iframe print fails, fall back to window.open
+        printViaWindow(html);
       }
-      // Remove iframe after print dialog closes (or timeout)
+      // Cleanup after print dialog
       setTimeout(() => {
-        try {
-          document.body.removeChild(iframe);
-        } catch {
-          // already removed
-        }
-      }, 2000);
-    }, 250);
+        try { document.body.removeChild(iframe); } catch { /* already removed */ }
+      }, 3000);
+    };
+
+    // Use onload for reliability, with timeout fallback
+    if (iframe.contentWindow) {
+      iframe.contentWindow.onload = tryPrint;
+    }
+    // Fallback if onload doesn't fire (common with document.write)
+    setTimeout(tryPrint, 500);
 
     return true;
   } catch {
