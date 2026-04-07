@@ -228,8 +228,8 @@ export default function CheckinPage() {
       </Card>
 
       {/* Action Buttons */}
-      {selectedServiceId && (
-        <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
+        {selectedServiceId && (
           <Button
             variant="outline"
             className="flex-1"
@@ -238,14 +238,16 @@ export default function CheckinPage() {
             <Monitor className="h-4 w-4 mr-2" />
             Modo Totem
           </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => setTrainingDialogOpen(true)}
-          >
-            <GraduationCap className="h-4 w-4 mr-2" />
-            Registrar Treinamento
-          </Button>
+        )}
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => setTrainingDialogOpen(true)}
+        >
+          <GraduationCap className="h-4 w-4 mr-2" />
+          Registrar Treinamento
+        </Button>
+        {selectedServiceId && (
           <Button
             variant="outline"
             className="flex-1"
@@ -254,8 +256,8 @@ export default function CheckinPage() {
             <History className="h-4 w-4 mr-2" />
             Ver Histórico
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Check-in Methods */}
       {selectedServiceId && (
@@ -327,12 +329,11 @@ export default function CheckinPage() {
       />
 
       {/* Training Registration Dialog */}
-      {selectedServiceId && (
-        <TrainingRegistrationDialog
-          open={trainingDialogOpen}
-          onOpenChange={setTrainingDialogOpen}
-          serviceId={selectedServiceId}
-        />
+      <TrainingRegistrationDialog
+        open={trainingDialogOpen}
+        onOpenChange={setTrainingDialogOpen}
+        serviceId={selectedServiceId}
+      />
       )}
     </div>
   );
