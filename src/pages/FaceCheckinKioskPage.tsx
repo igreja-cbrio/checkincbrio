@@ -5,6 +5,7 @@ import { AutoFaceScanner, FaceMatchResult } from '@/components/checkin/AutoFaceS
 import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
 import { KioskNameCheckin } from '@/components/checkin/KioskNameCheckin';
 import { KioskQrDisplay } from '@/components/checkin/KioskQrDisplay';
+import { TrainingRegistrationDialog } from '@/components/checkin/TrainingRegistrationDialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
