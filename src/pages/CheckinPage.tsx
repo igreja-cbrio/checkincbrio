@@ -229,16 +229,14 @@ export default function CheckinPage() {
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-2">
-        {selectedServiceId && (
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => navigate('/checkin/kiosk')}
-          >
-            <Monitor className="h-4 w-4 mr-2" />
-            Modo Totem
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => navigate('/checkin/kiosk')}
+        >
+          <Monitor className="h-4 w-4 mr-2" />
+          Modo Totem
+        </Button>
         <Button
           variant="outline"
           className="flex-1"
