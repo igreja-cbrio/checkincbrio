@@ -23,7 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 interface TrainingRegistrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  serviceId: string;
+  serviceId?: string;
 }
 
 function LabelPreview({
@@ -139,7 +139,7 @@ export function TrainingRegistrationDialog({
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from('training_checkins').insert({
-        service_id: serviceId,
+        service_id: serviceId || null,
         volunteer_name: name.trim(),
         team_name: teamName.trim(),
         phone: phone.trim() || null,

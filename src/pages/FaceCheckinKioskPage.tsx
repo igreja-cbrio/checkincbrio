@@ -151,12 +151,10 @@ export default function FaceCheckinKioskPage() {
               <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
             )}
           </div>
-          {selectedServiceId && (
-            <Button variant="outline" size="sm" onClick={() => setTrainingDialogOpen(true)} className="gap-1.5">
-              <GraduationCap className="h-4 w-4" />
-              Treinamento
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={() => setTrainingDialogOpen(true)} className="gap-1.5">
+            <GraduationCap className="h-4 w-4" />
+            Treinamento
+          </Button>
           <Button variant="outline" size="icon" onClick={toggleFullscreen}>
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
