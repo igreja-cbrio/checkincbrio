@@ -15,6 +15,7 @@ function buildLabelHtml({ volunteerName, teamName, date, fontSize = 14 }: LabelP
   return `<!DOCTYPE html>
 <html>
 <head>
+  <title>Etiqueta</title>
   <style>
     @page {
       size: 90mm 29mm !important;
