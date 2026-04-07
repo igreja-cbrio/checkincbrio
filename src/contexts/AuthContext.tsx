@@ -79,6 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Safety timeout: never stay loading forever (e.g. network issues on mobile)
+    const safetyTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -95,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRoles([]);
         }
         setIsLoading(false);
+        clearTimeout(safetyTimeout);
       }
     );
 
@@ -106,9 +112,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchUserData(session.user.id);
       }
       setIsLoading(false);
+      clearTimeout(safetyTimeout);
+    }).catch(() => {
+      // If getSession fails (e.g. offline), stop loading
+      setIsLoading(false);
+      clearTimeout(safetyTimeout);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimeout);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
