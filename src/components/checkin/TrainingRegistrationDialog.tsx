@@ -101,6 +101,9 @@ function LabelPreview({
   );
 }
 
+// Store last printed label globally so it survives dialog close/reopen
+let lastPrintedLabel: { volunteerName: string; teamName: string; date: string; fontSize: number } | null = null;
+
 export function TrainingRegistrationDialog({
   open,
   onOpenChange,
@@ -115,8 +118,15 @@ export function TrainingRegistrationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [fontSize, setFontSize] = useState(14);
+  const [, forceUpdate] = useState(0);
 
   const todayFormatted = format(new Date(), 'dd/MM/yyyy');
+
+  const handleReprint = () => {
+    if (!lastPrintedLabel) return;
+    printLabel(lastPrintedLabel);
+    toast.info(`Reimprimindo etiqueta: ${lastPrintedLabel.volunteerName}`);
+  };
 
   const handleSubmit = async () => {
     if (!name.trim() || !teamName.trim()) {
@@ -139,27 +149,29 @@ export function TrainingRegistrationDialog({
       toast.success(`Treinamento registrado: ${name.trim()}`);
 
       // Capture values before resetting
-      const printName = name.trim();
-      const printTeam = teamName.trim();
-      const printFontSize = fontSize;
+      const printData = {
+        volunteerName: name.trim(),
+        teamName: teamName.trim(),
+        date: todayFormatted,
+        fontSize,
+      };
       const wantPrint = shouldPrint;
+
+      // Save as last printed label
+      lastPrintedLabel = printData;
 
       queryClient.invalidateQueries({ queryKey: ['training-checkins'] });
       setName('');
       setTeamName('');
       setPhone('');
       setShowPreview(false);
+      forceUpdate((n) => n + 1);
       onOpenChange(false);
 
-      // Print AFTER dialog is closed so the browser only prints the label iframe
+      // Print AFTER dialog is closed
       if (wantPrint) {
         setTimeout(() => {
-          printLabel({
-            volunteerName: printName,
-            teamName: printTeam,
-            date: todayFormatted,
-            fontSize: printFontSize,
-          });
+          printLabel(printData);
         }, 300);
       }
     } catch (error) {
