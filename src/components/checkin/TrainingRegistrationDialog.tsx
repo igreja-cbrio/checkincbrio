@@ -315,6 +315,18 @@ export function TrainingRegistrationDialog({
                 Ver etiqueta
               </Button>
             </div>
+
+            {lastPrintedLabel && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={handleReprint}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reimprimir: {lastPrintedLabel.volunteerName}
+              </Button>
+            )}
           </div>
         )}
 
