@@ -204,12 +204,29 @@ export function TrainingRegistrationDialog({
                   Imprimir etiqueta
                 </label>
               </div>
-              {name.trim() && (
-                <Button variant="ghost" size="sm" onClick={() => setShowPreview(true)}>
-                  <Eye className="h-4 w-4 mr-1" />
-                  Ver etiqueta
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    printLabel({
+                      volunteerName: 'TESTE IMPRESSÃO',
+                      teamName: 'Equipe Teste',
+                      date: todayFormatted,
+                    });
+                    toast.info('Impressão de teste enviada');
+                  }}
+                >
+                  <Printer className="h-4 w-4 mr-1" />
+                  Teste
                 </Button>
-              )}
+                {name.trim() && (
+                  <Button variant="ghost" size="sm" onClick={() => setShowPreview(true)}>
+                    <Eye className="h-4 w-4 mr-1" />
+                    Ver etiqueta
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}
