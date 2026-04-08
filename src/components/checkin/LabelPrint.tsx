@@ -5,13 +5,23 @@ interface LabelPrintProps {
   fontSize?: number;
 }
 
+function buildPrintUrl(props: LabelPrintProps): string {
+  const params = new URLSearchParams({
+    name: props.volunteerName,
+    team: props.teamName || '',
+    date: props.date,
+    fs: String(props.fontSize || 14),
+  });
+  return `/print/training-label?${params.toString()}`;
+}
+
 /**
  * Opens a dedicated print page in a new tab with only the label content.
+ * Must be called synchronously from a user gesture to avoid popup blockers.
  * Returns the window reference (or null if blocked).
  */
 export function openPrintWindow(): Window | null {
-  // Must be called synchronously from a user gesture to avoid popup blockers
-  return window.open('', '_blank');
+  return window.open('about:blank', '_blank');
 }
 
 /**
@@ -21,13 +31,7 @@ export function navigatePrintWindow(
   printWindow: Window,
   props: LabelPrintProps
 ): void {
-  const params = new URLSearchParams({
-    name: props.volunteerName,
-    team: props.teamName || '',
-    date: props.date,
-    fs: String(props.fontSize || 14),
-  });
-  printWindow.location.href = `/print/training-label?${params.toString()}`;
+  printWindow.location.href = buildPrintUrl(props);
 }
 
 /**
@@ -35,11 +39,10 @@ export function navigatePrintWindow(
  * For use when called synchronously (no prior await).
  */
 export function printLabel(props: LabelPrintProps): boolean {
-  const win = openPrintWindow();
+  const win = window.open(buildPrintUrl(props), '_blank');
   if (!win) {
     alert('Não foi possível abrir a janela de impressão. Verifique se popups estão permitidos.');
     return false;
   }
-  navigatePrintWindow(win, props);
   return true;
 }
