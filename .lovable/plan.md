@@ -1,39 +1,43 @@
 
 
-# Plano: Garantir que a impressão da etiqueta funcione sem interferência
+# Plano: Correção definitiva da impressão de etiquetas
 
-## Problema real
+## Problema raiz
 
-O `src/index.css` tem um `@media print { @page { size: A4; margin: 1.5cm } }` global que pode estar sobrescrevendo o `@page { size: 90mm 29mm }` da `TrainingLabelPrintPage`. Além disso, os estilos globais do Tailwind e do `index.css` (fontes, variáveis CSS, resets) são carregados em todas as rotas, incluindo a de impressão.
+1. O `@page { size: A4 }` global no `index.css` (linha 180) não está condicionado e compete com o `@page` da etiqueta
+2. A rota `/print/training-label` depende do carregamento completo da SPA (Vite + React + Router) antes de renderizar — no Android, o `window.print()` dispara antes disso, resultando em página em branco
 
-## Solucao
+## Solução: eliminar a dependência da SPA
 
-### 1. `src/index.css` — Proteger a rota de impressão do `@page A4`
+Em vez de abrir uma rota React, o `printLabel` vai abrir uma janela e usar `document.write()` para injetar um HTML completo e independente — sem React, sem Tailwind, sem conflitos de CSS.
 
-Envolver o bloco `@media print` existente com uma condição que exclua a página de etiqueta:
+## Alterações
 
-```css
-@media print {
-  body:not([data-print-label]) .print-report .card { ... }
-  body:not([data-print-label]) { @page { size: A4; margin: 1.5cm; } }
-}
+### 1. `src/components/checkin/LabelPrint.tsx`
+- Reescrever para que `printLabel()` e `navigatePrintWindow()` usem `document.write()` na janela aberta
+- O HTML injetado contém toda a estrutura da etiqueta inline: `@page { size: 90mm 29mm }`, layout, fontes, logo base64
+- Chamar `window.print()` dentro do documento injetado via `onload` ou timeout curto
+- Isso elimina qualquer dependência de carregamento da SPA
+
+### 2. `src/index.css`
+- Mover o `@page { size: A4; margin: 1.5cm }` para dentro do bloco `body:not([data-print-label])` (como fallback de segurança)
+
+### 3. `src/pages/TrainingLabelPrintPage.tsx` e `src/App.tsx`
+- Manter a rota `/print/training-label` como fallback visual, mas o fluxo principal não dependerá mais dela
+
+## Fluxo final
+```text
+Clique em "Registrar"
+→ abre janela em branco (síncrono, evita popup blocker)
+→ salva no banco (async)
+→ document.write() injeta HTML completo da etiqueta na janela
+→ onload dispara window.print()
+→ afterprint fecha a janela
 ```
 
-Nota: como `@page` nao aceita seletores condicionais em CSS puro, a abordagem sera adicionar um `body.print-label-mode` na `TrainingLabelPrintPage` e no `@media print` do `index.css` simplesmente nao declarar `@page` — deixar que a pagina de etiqueta defina seu proprio `@page` sem competicao.
-
-Na pratica: **remover** o `@page { size: A4; margin: 1.5cm }` do `index.css` e mover para os componentes de relatorio que realmente precisam (ou envolver com uma classe `.print-report`).
-
-### 2. `src/pages/TrainingLabelPrintPage.tsx` — Reforcar isolamento
-
-- Adicionar `data-print-label` ao body no `useEffect` (e remover no cleanup)
-- Isso permite que o CSS global saiba que NAO deve aplicar regras de impressao A4
-
-### Arquivos alterados
-
-1. **src/index.css** — Mover `@page A4` para dentro de `.print-report` ou condicionar a `body:not([data-print-label])`
-2. **src/pages/TrainingLabelPrintPage.tsx** — Marcar body com atributo ao montar
-
-## Resultado
-
-A pagina `/print/training-label` abre em uma aba limpa, com `@page: 90mm 29mm` sem competicao do A4 global. O dialog de impressao aparece automaticamente. Ao fechar, a aba tenta se fechar sozinha.
+## Por que isso resolve de vez
+- Não depende de carregamento de bundle/SPA
+- Não compete com CSS global
+- O HTML da etiqueta é auto-contido e imediato
+- Funciona em qualquer navegador/tablet sem race condition
 
