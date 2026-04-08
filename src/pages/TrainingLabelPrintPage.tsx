@@ -13,6 +13,9 @@ export default function TrainingLabelPrintPage() {
   const fontSize = parseInt(searchParams.get('fs') || '14', 10);
 
   useEffect(() => {
+    // Mark body so global CSS skips A4 @page rules
+    document.body.setAttribute('data-print-label', 'true');
+
     if (hasPrinted.current) return;
     hasPrinted.current = true;
 
@@ -21,13 +24,13 @@ export default function TrainingLabelPrintPage() {
     }, 300);
 
     const handleAfterPrint = () => {
-      // Try to close the tab/window after printing
       window.close();
     };
     window.addEventListener('afterprint', handleAfterPrint);
 
     return () => {
       clearTimeout(timer);
+      document.body.removeAttribute('data-print-label');
       window.removeEventListener('afterprint', handleAfterPrint);
     };
   }, []);
