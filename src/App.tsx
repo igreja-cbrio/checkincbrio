@@ -36,6 +36,7 @@ const App = () => (
             <Route path="/planning-center/callback" element={<PlanningCenterCallback />} />
             <Route path="/checkin/kiosk" element={<FaceCheckinKioskPage />} />
             <Route path="/selfcheckin" element={<SelfCheckinPage />} />
+            <Route path="/print/training-label" element={<TrainingLabelPrintPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
