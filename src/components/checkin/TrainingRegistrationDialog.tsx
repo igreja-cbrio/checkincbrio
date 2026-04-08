@@ -15,7 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { GraduationCap, Printer, Loader2, Eye, ArrowLeft, Minus, Plus, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { openPrintWindow, navigatePrintWindow, printLabel } from '@/components/checkin/LabelPrint';
+import { openPrintWindow, navigatePrintWindow, printLabel, triggerPrintWindow } from '@/components/checkin/LabelPrint';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -171,7 +171,8 @@ export function TrainingRegistrationDialog({
 
       // Navigate the pre-opened window to the print page
       if (printWindow) {
-        navigatePrintWindow(printWindow, printData);
+        navigatePrintWindow(printWindow, printData, { autoPrint: false });
+        triggerPrintWindow(printWindow);
       }
     } catch (error) {
       // Close the pre-opened window on error

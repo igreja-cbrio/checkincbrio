@@ -7,9 +7,41 @@ interface LabelPrintProps {
   fontSize?: number;
 }
 
-function buildLabelHtml(props: LabelPrintProps): string {
+interface BuildLabelHtmlOptions {
+  autoPrint?: boolean;
+}
+
+function buildLabelHtml(props: LabelPrintProps, options: BuildLabelHtmlOptions = {}): string {
   const { volunteerName, teamName, date, fontSize = 14 } = props;
+  const { autoPrint = true } = options;
   const teamLine = teamName ? `${teamName} • ${date}` : date;
+  const printScript = autoPrint
+    ? `<script>
+  (function() {
+    var started = false;
+    function startPrint() {
+      if (started) return;
+      started = true;
+      window.focus();
+      requestAnimationFrame(function() {
+        setTimeout(function() { window.print(); }, 250);
+      });
+    }
+
+    if (document.readyState === 'complete') {
+      startPrint();
+    } else {
+      window.addEventListener('load', startPrint, { once: true });
+    }
+
+    window.addEventListener('afterprint', function() {
+      setTimeout(function() { window.close(); }, 100);
+    });
+
+    setTimeout(startPrint, 1200);
+  })();
+</script>`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -90,12 +122,7 @@ html, body {
   </div>
   <button class="close-btn" onclick="window.close()">Fechar</button>
 </div>
-<script>
-  window.onload = function() {
-    setTimeout(function() { window.print(); }, 400);
-  };
-  window.onafterprint = function() { window.close(); };
-</script>
+${printScript}
 </body>
 </html>`;
 }
@@ -112,7 +139,45 @@ function escapeHtml(str: string): string {
  * Opens a blank window synchronously (must be called from user gesture).
  */
 export function openPrintWindow(): Window | null {
-  return window.open('', '_blank');
+  const printWindow = window.open('', '_blank');
+
+  if (!printWindow) {
+    return null;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Preparando etiqueta</title>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #fff;
+      color: #111;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .loading {
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">Preparando etiqueta…</div>
+</body>
+</html>`);
+  printWindow.document.close();
+
+  return printWindow;
 }
 
 /**
@@ -120,12 +185,44 @@ export function openPrintWindow(): Window | null {
  */
 export function navigatePrintWindow(
   printWindow: Window,
-  props: LabelPrintProps
+  props: LabelPrintProps,
+  options: BuildLabelHtmlOptions = {}
 ): void {
-  const html = buildLabelHtml(props);
+  const html = buildLabelHtml(props, options);
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+  printWindow.focus();
+}
+
+export function triggerPrintWindow(printWindow: Window): void {
+  let started = false;
+
+  const startPrint = () => {
+    if (started) return;
+    started = true;
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  printWindow.onafterprint = () => {
+    try {
+      printWindow.close();
+    } catch {
+      // noop
+    }
+  };
+
+  const logo = printWindow.document.querySelector('.logo-img') as HTMLImageElement | null;
+
+  if (logo && !logo.complete) {
+    logo.addEventListener('load', startPrint, { once: true });
+    logo.addEventListener('error', startPrint, { once: true });
+    window.setTimeout(startPrint, 800);
+    return;
+  }
+
+  window.setTimeout(startPrint, 150);
 }
 
 /**
@@ -133,14 +230,11 @@ export function navigatePrintWindow(
  * For use when called synchronously (no prior await).
  */
 export function printLabel(props: LabelPrintProps): boolean {
-  const win = window.open('', '_blank');
+  const win = openPrintWindow();
   if (!win) {
     alert('Não foi possível abrir a janela de impressão. Verifique se popups estão permitidos.');
     return false;
   }
-  const html = buildLabelHtml(props);
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
+  navigatePrintWindow(win, props);
   return true;
 }
