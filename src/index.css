@@ -176,7 +176,9 @@ All colors MUST be HSL.
   }
 }
 
-/* A4 page setup - only for reports, not labels */
+/* A4 page setup - only for reports, not labels.
+   The label print page uses document.write() in a separate window,
+   so this rule only affects the main app. */
 @page {
   size: A4;
   margin: 1.5cm;
