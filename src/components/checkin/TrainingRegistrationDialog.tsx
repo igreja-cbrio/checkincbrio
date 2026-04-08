@@ -171,8 +171,7 @@ export function TrainingRegistrationDialog({
 
       // Navigate the pre-opened window to the print page
       if (printWindow) {
-        navigatePrintWindow(printWindow, printData, { autoPrint: false });
-        triggerPrintWindow(printWindow);
+        navigatePrintWindow(printWindow, printData);
       }
     } catch (error) {
       // Close the pre-opened window on error
