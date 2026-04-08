@@ -15,7 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { GraduationCap, Printer, Loader2, Eye, ArrowLeft, Minus, Plus, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { printLabel } from '@/components/checkin/LabelPrint';
+import { openPrintWindow, navigatePrintWindow, printLabel } from '@/components/checkin/LabelPrint';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
@@ -37,7 +37,6 @@ function LabelPreview({
   date: string;
   fontSize: number;
 }) {
-  // Scale: 90mm ≈ 340px, 29mm ≈ 110px at 96dpi (horizontal)
   const labelW = 340;
   const labelH = 110;
 
@@ -54,12 +53,9 @@ function LabelPreview({
           padding: '6px 10px',
         }}
       >
-        {/* Left: cross + church */}
         <div className="flex flex-col items-center mr-3 flex-shrink-0">
           <img src="/images/logo-cbrio.png" alt="CBRio" style={{ height: '24px', width: 'auto', objectFit: 'contain' }} />
         </div>
-
-        {/* Content: name + badge + info */}
         <div className="flex flex-col justify-center overflow-hidden">
           <span
             style={{
@@ -101,7 +97,6 @@ function LabelPreview({
   );
 }
 
-// Store last printed label globally so it survives dialog close/reopen
 let lastPrintedLabel: { volunteerName: string; teamName: string; date: string; fontSize: number } | null = null;
 
 export function TrainingRegistrationDialog({
@@ -124,18 +119,23 @@ export function TrainingRegistrationDialog({
 
   const handleReprint = () => {
     if (!lastPrintedLabel) return;
-    const started = printLabel(lastPrintedLabel);
-    if (!started) {
-      toast.error('Não foi possível iniciar a impressão.');
-      return;
-    }
-    toast.info(`Reimprimindo etiqueta: ${lastPrintedLabel.volunteerName}`);
+    printLabel(lastPrintedLabel);
   };
 
   const handleSubmit = async () => {
     if (!name.trim() || !teamName.trim()) {
       toast.error('Preencha o nome e a área/equipe');
       return;
+    }
+
+    // Pre-open the print window BEFORE the async call to avoid popup blockers
+    let printWindow: Window | null = null;
+    if (shouldPrint) {
+      printWindow = openPrintWindow();
+      if (!printWindow) {
+        toast.error('Não foi possível abrir a janela de impressão. Verifique se popups estão permitidos.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -152,16 +152,13 @@ export function TrainingRegistrationDialog({
 
       toast.success(`Treinamento registrado: ${name.trim()}`);
 
-      // Capture values before resetting
       const printData = {
         volunteerName: name.trim(),
         teamName: teamName.trim(),
         date: todayFormatted,
         fontSize,
       };
-      const wantPrint = shouldPrint;
 
-      // Save as last printed label
       lastPrintedLabel = printData;
 
       queryClient.invalidateQueries({ queryKey: ['training-checkins'] });
@@ -172,13 +169,15 @@ export function TrainingRegistrationDialog({
       forceUpdate((n) => n + 1);
       onOpenChange(false);
 
-      // Wait for dialog to unmount from DOM before printing
-      if (wantPrint) {
-        setTimeout(() => {
-          printLabel(printData);
-        }, 150);
+      // Navigate the pre-opened window to the print page
+      if (printWindow) {
+        navigatePrintWindow(printWindow, printData);
       }
     } catch (error) {
+      // Close the pre-opened window on error
+      if (printWindow) {
+        try { printWindow.close(); } catch {}
+      }
       toast.error('Erro ao registrar treinamento');
     } finally {
       setIsSubmitting(false);
@@ -209,7 +208,6 @@ export function TrainingRegistrationDialog({
               fontSize={fontSize}
             />
 
-            {/* Font size control */}
             <div className="w-full max-w-xs space-y-2">
               <Label className="text-sm">Tamanho da fonte do nome</Label>
               <div className="flex items-center gap-3">
@@ -250,15 +248,12 @@ export function TrainingRegistrationDialog({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const started = printLabel({
+                  printLabel({
                     volunteerName: name.trim() || 'TESTE IMPRESSÃO',
                     teamName: teamName.trim() || 'Equipe Teste',
                     date: todayFormatted,
                     fontSize,
                   });
-                  if (!started) {
-                    toast.error('Não foi possível iniciar a impressão.');
-                  }
                 }}
               >
                 <Printer className="h-4 w-4 mr-1" />

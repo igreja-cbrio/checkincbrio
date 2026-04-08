@@ -19,6 +19,7 @@ import ServiceCheckInHistoryPage from "./pages/ServiceCheckInHistoryPage";
 import ProfilePage from "./pages/ProfilePage";
 import PlanningCenterCallback from "./pages/PlanningCenterCallback";
 import SelfCheckinPage from "./pages/SelfCheckinPage";
+import TrainingLabelPrintPage from "./pages/TrainingLabelPrintPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/planning-center/callback" element={<PlanningCenterCallback />} />
             <Route path="/checkin/kiosk" element={<FaceCheckinKioskPage />} />
             <Route path="/selfcheckin" element={<SelfCheckinPage />} />
+            <Route path="/print/training-label" element={<TrainingLabelPrintPage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
