@@ -139,45 +139,45 @@ All colors MUST be HSL.
 
 /* Print Styles */
 @media print {
-  body {
+  body:not([data-print-label]) {
     background: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .print\\:hidden {
+  body:not([data-print-label]) .print\\:hidden {
     display: none !important;
   }
 
-  .print\\:block {
+  body:not([data-print-label]) .print\\:block {
     display: block !important;
   }
 
   /* Hide navigation and non-essential elements */
-  nav,
-  header,
-  .mobile-nav,
-  [data-mobile-nav],
-  .no-print {
+  body:not([data-print-label]) nav,
+  body:not([data-print-label]) header,
+  body:not([data-print-label]) .mobile-nav,
+  body:not([data-print-label]) [data-mobile-nav],
+  body:not([data-print-label]) .no-print {
     display: none !important;
   }
 
   /* Report specific styles */
-  .print-report {
+  body:not([data-print-label]) .print-report {
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  .print-report .card {
+  body:not([data-print-label]) .print-report .card {
     border: 1px solid hsl(var(--border)) !important;
     box-shadow: none !important;
     break-inside: avoid;
     margin-bottom: 1rem !important;
   }
+}
 
-  /* Page setup */
-  @page {
-    size: A4;
-    margin: 1.5cm;
-  }
+/* A4 page setup - only for reports, not labels */
+@page {
+  size: A4;
+  margin: 1.5cm;
 }
