@@ -1,39 +1,37 @@
 
 
-# Plano: Simplificar fluxo de impressão de etiquetas
+# Plano: Corrigir impressão que mostra o dialog inteiro
 
 ## Problema
 
-A abordagem atual com `window.open('', '_blank')` causa problemas em tablets Android:
-1. A nova aba fica carregando infinitamente após a impressão
-2. `onload` não dispara de forma confiável com `document.write`
-3. O fallback de 800ms pode disparar `print()` duas vezes
-4. O usuário precisa fechar a aba manualmente
+O `window.print()` esta sendo chamado enquanto o dialog (modal) do Radix UI ainda esta visivel no DOM. O CSS tenta esconder com `body > *:not(#label-print-host)`, mas os portais do Radix (overlay, conteudo do modal) sao filhos diretos do `<body>` e nao estao sendo escondidos corretamente no contexto de impressao — provavelmente porque o seletor CSS nao cobre todos os elementos do portal, ou o Chrome Android nao aplica as regras `@media print` injetadas dinamicamente a tempo.
 
-## Solução
+## Solucao
 
-Trocar `window.open` por um **iframe oculto inserido no próprio documento**, mas usando `document.write` no iframe (não `src`), com uma abordagem mais robusta que funcione em Android:
+Abordagem em duas partes:
 
-1. Criar um `<iframe>` invisível no body
-2. Injetar o HTML via `contentDocument.write()`
-3. Aguardar o conteúdo carregar, chamar `contentWindow.focus()` + `contentWindow.print()`
-4. Remover o iframe após a impressão (com timeout de segurança)
-5. Se `contentWindow.print()` falhar (como no iOS Safari), usar `window.open` como fallback
+### 1. TrainingRegistrationDialog.tsx — Fechar dialog ANTES de imprimir
 
-## Alteração
+- Separar: primeiro fechar o dialog, depois imprimir com um pequeno delay
+- `onOpenChange(false)` → `setTimeout(() => printLabel(printData), 150)`
+- O delay de 150ms permite que o React remova o portal do DOM antes do `window.print()`
+- `window.print()` NAO requer user gesture no Android Chrome (diferente de `window.open`), entao o delay nao causa bloqueio
 
-### `src/components/checkin/LabelPrint.tsx`
+### 2. LabelPrint.tsx — CSS mais agressivo para esconder TUDO
 
-- Criar função `printViaIframe(html)` como método principal:
-  - Cria iframe com `style="position:fixed; width:0; height:0; border:none; visibility:hidden"`
-  - Usa `iframe.contentDocument.write(html)` + `close()`
-  - Chama `iframe.contentWindow.print()` após um pequeno delay
-  - Remove o iframe após 2s (tempo suficiente para o diálogo de impressão)
-- Manter `printViaWindow(html)` como fallback (código atual simplificado, sem o setTimeout duplicado)
-- Tentar iframe primeiro; se falhar (erro ou bloqueio), cair no fallback de window.open
-- Remover o setTimeout de 800ms duplicado que causa double-print
+- Trocar o seletor `body > *:not(#label-print-host)` por um seletor universal que esconde absolutamente tudo exceto o host:
+  ```css
+  body[data-label-print="active"] > * { display: none !important; }
+  body[data-label-print="active"] > #label-print-host { display: block !important; }
+  ```
+- Tambem adicionar regra para portais Radix especificamente:
+  ```css
+  body[data-label-print="active"] [data-radix-portal] { display: none !important; }
+  ```
+- Garantir que dentro do `@media print` as mesmas regras se apliquem
 
-## Resultado
+## Arquivos alterados
 
-Impressão direta sem abrir nova aba. O diálogo de impressão aparece sobre o app e, ao fechar, tudo volta ao normal sem páginas penduradas.
+1. **src/components/checkin/TrainingRegistrationDialog.tsx** — Delay de 150ms entre fechar dialog e chamar `printLabel`
+2. **src/components/checkin/LabelPrint.tsx** — CSS de impressao mais robusto que esconde todos os filhos de body e portais Radix
 
