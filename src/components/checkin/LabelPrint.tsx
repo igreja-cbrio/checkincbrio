@@ -99,13 +99,17 @@ const HOST_LABEL_STYLES = `
     background: #fff !important;
     overflow: hidden !important;
   }
-  body[${PRINT_MODE_ATTRIBUTE}="active"] > *:not(#${PRINT_HOST_ID}) {
+  body[${PRINT_MODE_ATTRIBUTE}="active"] > * {
     display: none !important;
   }
-  body[${PRINT_MODE_ATTRIBUTE}="active"] #${PRINT_HOST_ID} {
+  body[${PRINT_MODE_ATTRIBUTE}="active"] > #${PRINT_HOST_ID} {
+    display: block !important;
     opacity: 1 !important;
     pointer-events: auto !important;
     z-index: 2147483647 !important;
+  }
+  body[${PRINT_MODE_ATTRIBUTE}="active"] [data-radix-portal] {
+    display: none !important;
   }
   #${PRINT_HOST_ID} * {
     margin: 0;
@@ -262,13 +266,17 @@ function ensurePrintStyles() {
         overflow: hidden !important;
         background: #fff !important;
       }
-      body[${PRINT_MODE_ATTRIBUTE}="active"] > *:not(#${PRINT_HOST_ID}) {
+      body[${PRINT_MODE_ATTRIBUTE}="active"] > * {
         display: none !important;
       }
-      body[${PRINT_MODE_ATTRIBUTE}="active"] #${PRINT_HOST_ID} {
+      body[${PRINT_MODE_ATTRIBUTE}="active"] > #${PRINT_HOST_ID} {
+        display: block !important;
         opacity: 1 !important;
         pointer-events: auto !important;
         z-index: 2147483647 !important;
+      }
+      body[${PRINT_MODE_ATTRIBUTE}="active"] [data-radix-portal] {
+        display: none !important;
       }
     }
   `;

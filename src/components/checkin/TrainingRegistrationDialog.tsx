@@ -172,9 +172,11 @@ export function TrainingRegistrationDialog({
       forceUpdate((n) => n + 1);
       onOpenChange(false);
 
-      // Print right away so Android keeps the user gesture alive
+      // Wait for dialog to unmount from DOM before printing
       if (wantPrint) {
-        printLabel(printData);
+        setTimeout(() => {
+          printLabel(printData);
+        }, 150);
       }
     } catch (error) {
       toast.error('Erro ao registrar treinamento');
