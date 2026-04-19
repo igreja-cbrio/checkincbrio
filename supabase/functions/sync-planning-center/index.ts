@@ -162,6 +162,18 @@ async function fetchAllPlans(
   return Array.from(planMap.values());
 }
 
+// Planning Center returns sort_date as UTC, but it represents the LOCAL service time
+// (e.g., a 19:00 BRT service comes as "2026-04-26T19:00:00Z").
+// Convert from "local time pretending to be UTC" to actual UTC by adding the BRT offset.
+// BRT is UTC-3 (no DST in Brazil since 2019), so local 19:00 = real UTC 22:00.
+function normalizeServiceDate(sortDate: string): string {
+  if (!sortDate) return sortDate;
+  const d = new Date(sortDate);
+  if (isNaN(d.getTime())) return sortDate;
+  // Add 3 hours to convert from "BRT-as-UTC" to real UTC
+  return new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString();
+}
+
 // Get volunteer name with fallbacks
 function getVolunteerName(member: any, personData: any): string {
   if (member.attributes.name) return member.attributes.name;
@@ -271,7 +283,7 @@ serve(async (req) => {
       console.log(`Total plans to process for ${serviceType.attributes.name}: ${plans.length}`);
 
       for (const plan of plans) {
-        const serviceDate = plan.attributes.sort_date;
+        const serviceDate = normalizeServiceDate(plan.attributes.sort_date);
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
         const { data: service, error: serviceError } = await supabaseClient

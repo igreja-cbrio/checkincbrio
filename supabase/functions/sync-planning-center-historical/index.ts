@@ -125,6 +125,15 @@ async function fetchPlansInRange(
   return allPlans;
 }
 
+// Planning Center returns sort_date as UTC, but it represents the LOCAL service time.
+// Convert by adding 3 hours (BRT offset, UTC-3 fixed since 2019).
+function normalizeServiceDate(sortDate: string): string {
+  if (!sortDate) return sortDate;
+  const d = new Date(sortDate);
+  if (isNaN(d.getTime())) return sortDate;
+  return new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString();
+}
+
 function getVolunteerName(member: any, personData: any): string {
   if (member.attributes.name) return member.attributes.name;
   if (personData?.attributes) {
@@ -233,7 +242,7 @@ serve(async (req) => {
       const plans = await fetchPlansInRange(baseUrl, serviceType.id, credentials, startDate, endDate);
 
       for (const plan of plans) {
-        const serviceDate = plan.attributes.sort_date;
+        const serviceDate = normalizeServiceDate(plan.attributes.sort_date);
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
         const { data: service, error: serviceError } = await supabaseClient
