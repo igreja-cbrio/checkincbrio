@@ -283,7 +283,7 @@ serve(async (req) => {
       console.log(`Total plans to process for ${serviceType.attributes.name}: ${plans.length}`);
 
       for (const plan of plans) {
-        const serviceDate = plan.attributes.sort_date;
+        const serviceDate = normalizeServiceDate(plan.attributes.sort_date);
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
         const { data: service, error: serviceError } = await supabaseClient
