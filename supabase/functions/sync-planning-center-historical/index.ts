@@ -242,7 +242,7 @@ serve(async (req) => {
       const plans = await fetchPlansInRange(baseUrl, serviceType.id, credentials, startDate, endDate);
 
       for (const plan of plans) {
-        const serviceDate = plan.attributes.sort_date;
+        const serviceDate = normalizeServiceDate(plan.attributes.sort_date);
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
         const { data: service, error: serviceError } = await supabaseClient
