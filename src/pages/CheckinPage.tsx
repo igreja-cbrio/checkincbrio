@@ -98,8 +98,8 @@ export default function CheckinPage() {
         method: 'qr_code',
         isUnscheduled: true,
       });
-      toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
-        icon: <AlertTriangle className="h-4 w-4" />,
+      setSuccessData({
+        volunteerName: unscheduledDialog.result.volunteerName,
       });
 
       setUnscheduledDialog({ open: false, result: null });
