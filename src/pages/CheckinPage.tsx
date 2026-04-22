@@ -72,7 +72,12 @@ export default function CheckinPage() {
           scheduleId: result.schedule.id,
           method: 'qr_code',
         });
-        toast.success(`Check-in: ${result.volunteerName}`);
+        setSuccessData({
+          volunteerName: result.volunteerName,
+          teamName: result.schedule?.team_name,
+          positionName: result.schedule?.position_name,
+          avatarUrl: result.profile?.type === 'profile' ? result.profile?.avatar_url : null,
+        });
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar QR Code');
