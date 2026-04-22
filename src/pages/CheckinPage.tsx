@@ -27,7 +27,6 @@ export default function CheckinPage() {
     open: boolean;
     result: QrCodeResult | null;
   }>({ open: false, result: null });
-  const [printLabelChecked, setPrintLabelChecked] = useState(true);
   const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
