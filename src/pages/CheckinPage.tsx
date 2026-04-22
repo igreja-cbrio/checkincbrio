@@ -18,8 +18,6 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History, GraduationCap } from 'lucide-react';
-import { openPrintWindow, navigatePrintWindow, printLabel } from '@/components/checkin/LabelPrint';
-import { format as formatDate } from 'date-fns';
 
 export default function CheckinPage() {
   const navigate = useNavigate();
@@ -29,7 +27,6 @@ export default function CheckinPage() {
     open: boolean;
     result: QrCodeResult | null;
   }>({ open: false, result: null });
-  const [printLabelChecked, setPrintLabelChecked] = useState(true);
   const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
@@ -75,7 +72,7 @@ export default function CheckinPage() {
     }
   };
 
-  const handleConfirmUnscheduledCheckIn = async (shouldPrint: boolean) => {
+  const handleConfirmUnscheduledCheckIn = async () => {
     if (!unscheduledDialog.result || !selectedServiceId) return;
 
     try {
@@ -92,15 +89,6 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
-
-      if (shouldPrint) {
-        const service = todaysServices?.find(s => s.id === selectedServiceId);
-        printLabel({
-          volunteerName: unscheduledDialog.result.volunteerName,
-          teamName: unscheduledDialog.result.schedule?.team_name || undefined,
-          date: formatDate(new Date(), 'dd/MM/yyyy'),
-        });
-      }
 
       setUnscheduledDialog({ open: false, result: null });
     } catch (error) {
@@ -134,13 +122,6 @@ export default function CheckinPage() {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
 
-      // Auto-print label for manual unscheduled check-ins
-      if (printLabelChecked) {
-        printLabel({
-          volunteerName: params.volunteerName,
-          date: formatDate(new Date(), 'dd/MM/yyyy'),
-        });
-      }
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
@@ -322,8 +303,6 @@ export default function CheckinPage() {
         volunteerName={unscheduledDialog.result?.volunteerName || ''}
         onConfirm={handleConfirmUnscheduledCheckIn}
         isProcessing={checkInMutation.isPending}
-        printLabelChecked={printLabelChecked}
-        onPrintLabelChange={setPrintLabelChecked}
       />
 
       {/* Training Registration Dialog */}
