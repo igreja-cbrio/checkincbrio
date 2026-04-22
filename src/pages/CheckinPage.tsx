@@ -72,7 +72,7 @@ export default function CheckinPage() {
     }
   };
 
-  const handleConfirmUnscheduledCheckIn = async (shouldPrint: boolean) => {
+  const handleConfirmUnscheduledCheckIn = async () => {
     if (!unscheduledDialog.result || !selectedServiceId) return;
 
     try {
@@ -89,15 +89,6 @@ export default function CheckinPage() {
       toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
         icon: <AlertTriangle className="h-4 w-4" />,
       });
-
-      if (shouldPrint) {
-        const service = todaysServices?.find(s => s.id === selectedServiceId);
-        printLabel({
-          volunteerName: unscheduledDialog.result.volunteerName,
-          teamName: unscheduledDialog.result.schedule?.team_name || undefined,
-          date: formatDate(new Date(), 'dd/MM/yyyy'),
-        });
-      }
 
       setUnscheduledDialog({ open: false, result: null });
     } catch (error) {
