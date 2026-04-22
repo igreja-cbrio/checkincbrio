@@ -328,6 +328,17 @@ export default function CheckinPage() {
         onOpenChange={setTrainingDialogOpen}
         serviceId={selectedServiceId}
       />
+
+      {/* Success Overlay */}
+      {successData && (
+        <SuccessOverlay
+          volunteerName={successData.volunteerName}
+          teamName={successData.teamName}
+          positionName={successData.positionName}
+          avatarUrl={successData.avatarUrl}
+          onDismiss={() => setSuccessData(null)}
+        />
+      )}
     </div>
   );
 }
