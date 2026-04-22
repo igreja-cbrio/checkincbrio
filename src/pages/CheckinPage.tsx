@@ -110,11 +110,16 @@ export default function CheckinPage() {
 
   const handleManualCheckIn = async (scheduleId: string) => {
     try {
+      const schedule = schedules?.find(s => s.id === scheduleId);
       await checkInMutation.mutateAsync({
         scheduleId,
         method: 'manual',
       });
-      toast.success('Check-in realizado!');
+      setSuccessData({
+        volunteerName: schedule?.volunteer_name || 'Voluntário',
+        teamName: schedule?.team_name,
+        positionName: schedule?.position_name,
+      });
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
