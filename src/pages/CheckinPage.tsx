@@ -6,6 +6,7 @@ import { FaceScanner } from '@/components/checkin/FaceScanner';
 import { ManualCheckin, UnscheduledCheckInParams } from '@/components/checkin/ManualCheckin';
 import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
 import { TrainingRegistrationDialog } from '@/components/checkin/TrainingRegistrationDialog';
+import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,6 +29,12 @@ export default function CheckinPage() {
     result: QrCodeResult | null;
   }>({ open: false, result: null });
   const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
+  const [successData, setSuccessData] = useState<{
+    volunteerName: string;
+    teamName?: string | null;
+    positionName?: string | null;
+    avatarUrl?: string | null;
+  } | null>(null);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
@@ -65,7 +72,12 @@ export default function CheckinPage() {
           scheduleId: result.schedule.id,
           method: 'qr_code',
         });
-        toast.success(`Check-in: ${result.volunteerName}`);
+        setSuccessData({
+          volunteerName: result.volunteerName,
+          teamName: result.schedule?.team_name,
+          positionName: result.schedule?.position_name,
+          avatarUrl: null,
+        });
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar QR Code');
@@ -86,8 +98,8 @@ export default function CheckinPage() {
         method: 'qr_code',
         isUnscheduled: true,
       });
-      toast.warning(`Check-in (sem escala): ${unscheduledDialog.result.volunteerName}`, {
-        icon: <AlertTriangle className="h-4 w-4" />,
+      setSuccessData({
+        volunteerName: unscheduledDialog.result.volunteerName,
       });
 
       setUnscheduledDialog({ open: false, result: null });
@@ -98,11 +110,16 @@ export default function CheckinPage() {
 
   const handleManualCheckIn = async (scheduleId: string) => {
     try {
+      const schedule = schedules?.find(s => s.id === scheduleId);
       await checkInMutation.mutateAsync({
         scheduleId,
         method: 'manual',
       });
-      toast.success('Check-in realizado!');
+      setSuccessData({
+        volunteerName: schedule?.volunteer_name || 'Voluntário',
+        teamName: schedule?.team_name,
+        positionName: schedule?.position_name,
+      });
     } catch (error) {
       toast.error('Erro ao fazer check-in');
     }
@@ -118,8 +135,8 @@ export default function CheckinPage() {
         method: 'manual',
         isUnscheduled: true,
       });
-      toast.warning(`Check-in (sem escala): ${params.volunteerName}`, {
-        icon: <AlertTriangle className="h-4 w-4" />,
+      setSuccessData({
+        volunteerName: params.volunteerName,
       });
 
     } catch (error) {
@@ -311,6 +328,17 @@ export default function CheckinPage() {
         onOpenChange={setTrainingDialogOpen}
         serviceId={selectedServiceId}
       />
+
+      {/* Success Overlay */}
+      {successData && (
+        <SuccessOverlay
+          volunteerName={successData.volunteerName}
+          teamName={successData.teamName}
+          positionName={successData.positionName}
+          avatarUrl={successData.avatarUrl}
+          onDismiss={() => setSuccessData(null)}
+        />
+      )}
     </div>
   );
 }
