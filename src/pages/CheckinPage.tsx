@@ -6,6 +6,7 @@ import { FaceScanner } from '@/components/checkin/FaceScanner';
 import { ManualCheckin, UnscheduledCheckInParams } from '@/components/checkin/ManualCheckin';
 import { UnscheduledCheckinDialog } from '@/components/checkin/UnscheduledCheckinDialog';
 import { TrainingRegistrationDialog } from '@/components/checkin/TrainingRegistrationDialog';
+import { SuccessOverlay } from '@/components/checkin/SuccessOverlay';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
