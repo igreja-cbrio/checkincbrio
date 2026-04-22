@@ -18,8 +18,6 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, CheckCircle2, AlertTriangle, RefreshCw, Loader2, Scan, Monitor, History, GraduationCap } from 'lucide-react';
-import { openPrintWindow, navigatePrintWindow, printLabel } from '@/components/checkin/LabelPrint';
-import { format as formatDate } from 'date-fns';
 
 export default function CheckinPage() {
   const navigate = useNavigate();
