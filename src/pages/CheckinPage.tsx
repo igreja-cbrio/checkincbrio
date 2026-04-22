@@ -76,7 +76,7 @@ export default function CheckinPage() {
           volunteerName: result.volunteerName,
           teamName: result.schedule?.team_name,
           positionName: result.schedule?.position_name,
-          avatarUrl: result.profile?.type === 'profile' ? result.profile?.avatar_url : null,
+          avatarUrl: null,
         });
       }
     } catch (error: any) {
