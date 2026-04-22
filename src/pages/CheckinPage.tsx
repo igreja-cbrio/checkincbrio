@@ -29,6 +29,12 @@ export default function CheckinPage() {
     result: QrCodeResult | null;
   }>({ open: false, result: null });
   const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
+  const [successData, setSuccessData] = useState<{
+    volunteerName: string;
+    teamName?: string | null;
+    positionName?: string | null;
+    avatarUrl?: string | null;
+  } | null>(null);
   
   const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
