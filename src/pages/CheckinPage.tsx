@@ -135,8 +135,8 @@ export default function CheckinPage() {
         method: 'manual',
         isUnscheduled: true,
       });
-      toast.warning(`Check-in (sem escala): ${params.volunteerName}`, {
-        icon: <AlertTriangle className="h-4 w-4" />,
+      setSuccessData({
+        volunteerName: params.volunteerName,
       });
 
     } catch (error) {
