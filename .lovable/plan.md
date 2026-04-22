@@ -1,66 +1,44 @@
 
-Objetivo
-- Eliminar a tela branca no preview da Brother/Android e fazer a etiqueta aparecer antes de abrir a impressão.
 
-O que a imagem confirma
-- O tablet já está reconhecendo o papel certo: 29mm x 90mm.
-- Então o problema não é mais o tamanho da folha.
-- O problema é o conteúdo: o Android está recebendo um job de impressão sem a etiqueta renderizada.
+# Plano: Remover impressão automática do check-in sem escala
 
-Causa provável no código atual
-- `src/components/checkin/LabelPrint.tsx` ainda depende de `document.write()` e de `printWindow.print()` disparado pela janela pai logo depois da escrita.
-- A aba também fecha em `afterprint`, e no Android isso pode acontecer cedo demais.
-- O layout foi montado como `90mm x 29mm`, mas o preview da Brother está em `29mm x 90mm`.
-- A prévia do dialog e a impressão usam renderizadores diferentes, e o logo atual está pesado/frágil.
+## Problema
 
-Plano de correção definitiva
+Quando um voluntário não está escalado e o líder faz check-in manual ou via QR code, o sistema está disparando a impressão de etiqueta — que é um fluxo desnecessário aqui. A etiqueta deve continuar existindo **apenas para treinamentos** (visitantes/novos no treinamento), não para voluntários sem escala.
 
-1. Reescrever o motor principal de impressão em `src/components/checkin/LabelPrint.tsx`
-- Parar de usar `document.write()` como fluxo principal.
-- Gerar um HTML autônomo em `Blob URL`.
-- Abrir a aba síncrona no clique e, depois do salvamento, navegar essa aba para o `Blob URL`.
-- A própria aba final será responsável por chamar `window.print()`.
+O check-in sem escala já tem toda a lógica funcionando (insert na tabela `check_ins` com `is_unscheduled = true`, e aparece nos relatórios). O único problema é a impressão indevida.
 
-2. Fazer a aba de impressão esperar a etiqueta existir de verdade
-- Renderizar a etiqueta primeiro.
-- Aguardar `load` + logo carregado/decodificado + 2 frames.
-- Só então abrir o preview de impressão.
-- Se o auto-print falhar, manter a etiqueta visível com botão “Imprimir”, em vez de tela branca.
+## Causas no código atual
 
-3. Parar de fechar a aba cedo demais
-- Remover o fechamento automático imediato em `afterprint`.
-- Fechar só manualmente, ou com fallback mais seguro depois que o usuário voltar do preview.
+`src/pages/CheckinPage.tsx`:
+- Linha 32: `printLabelChecked` inicia como `true` por padrão.
+- Linhas 78–109 (`handleConfirmUnscheduledCheckIn`): após check-in via QR, dispara `printLabel(...)`.
+- Linhas 123–147 (`handleUnscheduledManualCheckIn`): após check-in manual sem escala, dispara `printLabel(...)` automaticamente.
 
-4. Corrigir a orientação real da Brother
-- Alinhar o documento ao papel que o Android mostra: `29mm x 90mm`.
-- Se o design precisar continuar horizontal, rotacionar o conteúdo interno em vez de depender do navegador para girar a folha.
-- Revisar `width/height/overflow` para garantir que nada fique fora da área imprimível.
+`src/components/checkin/UnscheduledCheckinDialog.tsx`:
+- Mostra checkbox "Imprimir etiqueta de identificação" — confunde o líder e sugere que faz parte do fluxo.
 
-5. Unificar preview e impressão
-- Extrair um renderer único da etiqueta.
-- Fazer a prévia do dialog e o HTML de impressão usarem o mesmo markup, mesmas medidas e mesmo logo.
-- Trocar o base64 atual por um asset real e leve.
+## Alterações
 
-6. Ajustar `src/components/checkin/TrainingRegistrationDialog.tsx`
-- Manter a aba pré-aberta para evitar bloqueio de popup.
-- Depois do insert, apenas navegar a aba para o documento final.
-- Remover `triggerPrintWindow()` do fluxo principal, porque o print passará a ser disparado pela própria aba final.
+### 1. `src/pages/CheckinPage.tsx`
+- Remover toda a chamada `printLabel(...)` de `handleConfirmUnscheduledCheckIn`.
+- Remover toda a chamada `printLabel(...)` de `handleUnscheduledManualCheckIn`.
+- Remover o estado `printLabelChecked` e o import `openPrintWindow, navigatePrintWindow, printLabel` (não usados mais aqui).
+- Remover as props `printLabelChecked` e `onPrintLabelChange` passadas ao `UnscheduledCheckinDialog`.
 
-7. Deixar `src/pages/TrainingLabelPrintPage.tsx` só como fallback/manual debug
-- Não usar mais essa rota como motor principal de impressão.
+### 2. `src/components/checkin/UnscheduledCheckinDialog.tsx`
+- Remover o checkbox "Imprimir etiqueta de identificação" e suas props (`printLabelChecked`, `onPrintLabelChange`).
+- Simplificar `onConfirm` para `() => void` (sem argumento `printLabel`).
+- Remover import de `Checkbox` e ícone `Printer`.
 
-Arquivos
-- `src/components/checkin/LabelPrint.tsx`
-- `src/components/checkin/TrainingRegistrationDialog.tsx`
-- `src/pages/TrainingLabelPrintPage.tsx`
-- asset do logo em `public/` ou `src/assets/`
+### 3. Manter intactos
+- `TrainingRegistrationDialog` continua imprimindo etiqueta (é o fluxo correto para treinamentos).
+- `LabelPrint.tsx` permanece como está — usado apenas em treinamento.
+- Toda a lógica de `is_unscheduled = true` no banco e nos relatórios continua igual.
 
-Detalhes técnicos
-- O tamanho do papel já está correto; o erro está no momento e na forma como o conteúdo é enviado ao preview.
-- O melhor caminho é: `window.open()` síncrono + `Blob URL` + `window.print()` executado dentro do documento final.
-- O `@page A4` global deixa de ser relevante no fluxo principal, porque a impressão passa a acontecer num documento isolado.
+## Resultado
 
-Resultado esperado
-- Ao registrar treinamento, a Brother abre com a etiqueta visível no preview.
-- O usuário não vê mais tela branca.
-- A prévia do diálogo e a impressão ficam idênticas.
+- Check-in sem escala (manual ou QR) registra direto no banco, mostra toast de confirmação e a pessoa aparece no relatório de "voluntários sem escala".
+- Nenhuma janela de impressão abre.
+- Treinamento continua imprimindo etiqueta normalmente.
+
