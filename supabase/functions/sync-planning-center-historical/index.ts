@@ -245,6 +245,8 @@ serve(async (req) => {
         const serviceDate = normalizeServiceDate(plan.attributes.sort_date);
         const serviceName = plan.attributes.title || serviceType.attributes.name;
 
+        // Upsert por (service_type_name, scheduled_at) para evitar duplicatas
+        // quando o Planning Center cria múltiplos planos para o mesmo culto.
         const { data: service, error: serviceError } = await supabaseClient
           .from('services')
           .upsert({
@@ -252,7 +254,7 @@ serve(async (req) => {
             name: serviceName,
             service_type_name: serviceType.attributes.name,
             scheduled_at: serviceDate,
-          }, { onConflict: 'planning_center_id' })
+          }, { onConflict: 'service_type_name,scheduled_at' })
           .select()
           .single();
 
