@@ -1,44 +1,43 @@
-
-
-# Plano: Remover impressão automática do check-in sem escala
+# Plano: Trazer todos os cultos do domingo para a tela inicial
 
 ## Problema
 
-Quando um voluntário não está escalado e o líder faz check-in manual ou via QR code, o sistema está disparando a impressão de etiqueta — que é um fluxo desnecessário aqui. A etiqueta deve continuar existindo **apenas para treinamentos** (visitantes/novos no treinamento), não para voluntários sem escala.
+Hoje (domingo) só aparecem 4 cultos no painel: CBKIDS Manhã (08:30), Domingo - Manhã (08:30), CBKIDS Noite (19:00) e Domingo - Noite (19:00). Mas a igreja tem mais cultos no domingo (ex: o culto da manhã às 10:30 e/ou outros horários) que não estão sendo exibidos.
 
-O check-in sem escala já tem toda a lógica funcionando (insert na tabela `check_ins` com `is_unscheduled = true`, e aparece nos relatórios). O único problema é a impressão indevida.
+## Causa raiz
 
-## Causas no código atual
+Duas coisas combinadas:
 
-`src/pages/CheckinPage.tsx`:
-- Linha 32: `printLabelChecked` inicia como `true` por padrão.
-- Linhas 78–109 (`handleConfirmUnscheduledCheckIn`): após check-in via QR, dispara `printLabel(...)`.
-- Linhas 123–147 (`handleUnscheduledManualCheckIn`): após check-in manual sem escala, dispara `printLabel(...)` automaticamente.
+1. **Constraint de deduplicação errada.** Na correção anterior (para evitar cultos duplicados), foi criada uma constraint UNIQUE em `(service_type_name, scheduled_at)` na tabela `services`, e a sincronização usa `onConflict: 'service_type_name,scheduled_at'`. Isso é correto para evitar duplicatas, **mas** impede que dois planos legítimos do mesmo `service_type_name` (ex: "Domingo - Manhã" às 08:30 e às 10:30) coexistam quando deveriam — se cair a mesma chave por qualquer motivo, um sobrescreve o outro. O problema **real** é que cultos como "Domingo - Manhã 10:30" provavelmente nunca foram criados porque a migração de merge anterior os mesclou ao culto de 08:30, ou o sync não está pegando todos os planos.
 
-`src/components/checkin/UnscheduledCheckinDialog.tsx`:
-- Mostra checkbox "Imprimir etiqueta de identificação" — confunde o líder e sugere que faz parte do fluxo.
+2. **Sincronização parada há 2 dias.** A última `sync_logs` é de 24/04 às 16:37. O cron job está ativo (`*/30 * * * *`) mas a função `sync-planning-center-auto` aparentemente não está rodando ou falhando silenciosamente — não há log de erro registrado, mas também nenhum log de sucesso recente.
 
-## Alterações
+## Solução
 
-### 1. `src/pages/CheckinPage.tsx`
-- Remover toda a chamada `printLabel(...)` de `handleConfirmUnscheduledCheckIn`.
-- Remover toda a chamada `printLabel(...)` de `handleUnscheduledManualCheckIn`.
-- Remover o estado `printLabelChecked` e o import `openPrintWindow, navigatePrintWindow, printLabel` (não usados mais aqui).
-- Remover as props `printLabelChecked` e `onPrintLabelChange` passadas ao `UnscheduledCheckinDialog`.
+### 1. Investigar o sync automático
+- Ler logs da edge function `sync-planning-center-auto` das últimas 48h para descobrir por que parou.
+- Se houver erro, corrigir.
 
-### 2. `src/components/checkin/UnscheduledCheckinDialog.tsx`
-- Remover o checkbox "Imprimir etiqueta de identificação" e suas props (`printLabelChecked`, `onPrintLabelChange`).
-- Simplificar `onConfirm` para `() => void` (sem argumento `printLabel`).
-- Remover import de `Checkbox` e ícone `Printer`.
+### 2. Rodar sincronização manual completa
+- Disparar a sync principal para puxar todos os planos atuais do Planning Center (futuros + 7 dias passados), garantindo que cultos do domingo de hoje cheguem ao banco.
 
-### 3. Manter intactos
-- `TrainingRegistrationDialog` continua imprimindo etiqueta (é o fluxo correto para treinamentos).
-- `LabelPrint.tsx` permanece como está — usado apenas em treinamento.
-- Toda a lógica de `is_unscheduled = true` no banco e nos relatórios continua igual.
+### 3. Corrigir a constraint de deduplicação
+A constraint atual `(service_type_name, scheduled_at)` é apropriada para impedir duplicatas, mas o problema é se o Planning Center tem dois planos diferentes do mesmo tipo no mesmo horário (raro). O risco real está em cultos como "Domingo Manhã 10:30" terem sido descartados na migração de merge porque foram considerados duplicatas de "Domingo Manhã 08:30" (não devem ter sido — horários diferentes).
 
-## Resultado
+Após o sync manual, conferir no banco se todos os horários esperados estão presentes. Se ainda faltar algum, investigar caso a caso comparando com o Planning Center.
 
-- Check-in sem escala (manual ou QR) registra direto no banco, mostra toast de confirmação e a pessoa aparece no relatório de "voluntários sem escala".
-- Nenhuma janela de impressão abre.
-- Treinamento continua imprimindo etiqueta normalmente.
+### 4. Garantir que o cron job continue rodando
+- Verificar se o `pg_cron` está executando.
+- Validar a última execução via `cron.job_run_details`.
 
+## Resultado esperado
+
+- Todos os cultos do domingo (manhã 08:30, manhã 10:30, noite, etc.) aparecem na lista "Cultos de Hoje".
+- Sincronização automática volta a rodar a cada 30 minutos sem falhar.
+
+## Arquivos / áreas envolvidos (técnico)
+
+- Logs: `sync-planning-center-auto` edge function logs.
+- Banco: `cron.job_run_details`, `sync_logs`, `services`.
+- Edge function: `supabase/functions/sync-planning-center-auto/index.ts` (se houver erro a corrigir).
+- Não deve precisar mexer em frontend — `useTodaysServices` já busca tudo do dia corretamente.
