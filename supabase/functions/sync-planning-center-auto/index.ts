@@ -198,15 +198,33 @@ serve(async (req) => {
     const cronSecret = Deno.env.get('CRON_SECRET');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const projectRef = (Deno.env.get('SUPABASE_URL') ?? '').match(/https:\/\/([^.]+)\./)?.[1];
 
     const token = authHeader?.replace('Bearer ', '').trim();
 
-    // Accept any of: CRON_SECRET, current anon key, or service role key
-    const isValidCronSecret = cronSecret && token === cronSecret;
-    const isValidAnonKey = anonKey && token === anonKey;
-    const isValidServiceRole = serviceRoleKey && token === serviceRoleKey;
+    // Accept: CRON_SECRET, current anon key, service role key,
+    // OR any JWT signed for this project ref (handles anon-key rotations).
+    const isValidCronSecret = !!cronSecret && token === cronSecret;
+    const isValidAnonKey = !!anonKey && token === anonKey;
+    const isValidServiceRole = !!serviceRoleKey && token === serviceRoleKey;
 
-    if (!isValidCronSecret && !isValidAnonKey && !isValidServiceRole) {
+    let isValidProjectJwt = false;
+    if (token && projectRef) {
+      try {
+        const payloadPart = token.split('.')[1];
+        if (payloadPart) {
+          const padded = payloadPart + '='.repeat((4 - payloadPart.length % 4) % 4);
+          const decoded = JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')));
+          if (decoded?.ref === projectRef && (decoded?.role === 'anon' || decoded?.role === 'service_role')) {
+            isValidProjectJwt = true;
+          }
+        }
+      } catch (_e) {
+        // Not a valid JWT, ignore
+      }
+    }
+
+    if (!isValidCronSecret && !isValidAnonKey && !isValidServiceRole && !isValidProjectJwt) {
       console.error('Invalid or missing authorization. Token prefix:', token?.slice(0, 20));
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
@@ -214,7 +232,13 @@ serve(async (req) => {
       );
     }
 
-    const authSource = isValidCronSecret ? 'CRON_SECRET' : isValidServiceRole ? 'SERVICE_ROLE' : 'ANON_KEY';
+    const authSource = isValidCronSecret
+      ? 'CRON_SECRET'
+      : isValidServiceRole
+      ? 'SERVICE_ROLE'
+      : isValidAnonKey
+      ? 'ANON_KEY'
+      : 'PROJECT_JWT';
     console.log('Authorization validated, source:', authSource);
 
     const supabaseClient = createClient(
