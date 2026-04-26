@@ -197,20 +197,25 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const cronSecret = Deno.env.get('CRON_SECRET');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    const token = authHeader?.replace('Bearer ', '');
+    const token = authHeader?.replace('Bearer ', '').trim();
+
+    // Accept any of: CRON_SECRET, current anon key, or service role key
     const isValidCronSecret = cronSecret && token === cronSecret;
     const isValidAnonKey = anonKey && token === anonKey;
+    const isValidServiceRole = serviceRoleKey && token === serviceRoleKey;
 
-    if (!isValidCronSecret && !isValidAnonKey) {
-      console.error('Invalid or missing authorization');
+    if (!isValidCronSecret && !isValidAnonKey && !isValidServiceRole) {
+      console.error('Invalid or missing authorization. Token prefix:', token?.slice(0, 20));
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Authorization validated, source:', isValidCronSecret ? 'CRON_SECRET' : 'ANON_KEY');
+    const authSource = isValidCronSecret ? 'CRON_SECRET' : isValidServiceRole ? 'SERVICE_ROLE' : 'ANON_KEY';
+    console.log('Authorization validated, source:', authSource);
 
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
