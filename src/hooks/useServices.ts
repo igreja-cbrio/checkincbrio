@@ -54,3 +54,29 @@ export function useTodaysServices() {
     },
   });
 }
+
+/**
+ * Cultos elegíveis para check-in: de 24h atrás até o fim do dia atual.
+ * Permite registrar check-in até 24 horas após o horário do culto.
+ */
+export function useCheckinEligibleServices() {
+  const now = new Date();
+  const lowerBound = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+  return useQuery({
+    queryKey: ['services', 'checkin-eligible'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .gte('scheduled_at', lowerBound)
+        .lt('scheduled_at', endOfToday)
+        .order('scheduled_at', { ascending: true });
+
+      if (error) throw error;
+      return data as Service[];
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
+}

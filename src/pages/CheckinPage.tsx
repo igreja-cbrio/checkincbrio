@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useTodaysServices } from '@/hooks/useServices';
+import { useCheckinEligibleServices } from '@/hooks/useServices';
 import { useServiceSchedules, useCheckIn, useScheduleByQrCode, useUnscheduledCheckIns, QrCodeResult } from '@/hooks/useSchedules';
 import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
@@ -36,7 +36,7 @@ export default function CheckinPage() {
     avatarUrl?: string | null;
   } | null>(null);
   
-  const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
+  const { data: todaysServices, isLoading: loadingServices } = useCheckinEligibleServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
   const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
@@ -197,15 +197,22 @@ export default function CheckinPage() {
                 <SelectValue placeholder="Escolha um culto" />
               </SelectTrigger>
               <SelectContent>
-                {todaysServices.map((service) => (
-                  <SelectItem key={service.id} value={service.id}>
-                    {service.name} - {format(new Date(service.scheduled_at), 'HH:mm', { locale: ptBR })}
-                  </SelectItem>
-                ))}
+                {todaysServices.map((service) => {
+                  const serviceDate = new Date(service.scheduled_at);
+                  const isToday = serviceDate.toDateString() === new Date().toDateString();
+                  const label = isToday
+                    ? format(serviceDate, 'HH:mm', { locale: ptBR })
+                    : format(serviceDate, 'dd/MM HH:mm', { locale: ptBR });
+                  return (
+                    <SelectItem key={service.id} value={service.id}>
+                      {service.name} - {label}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
+            <p className="text-sm text-muted-foreground">Nenhum culto disponível para check-in</p>
           )}
 
           {selectedServiceId && (
