@@ -1,43 +1,55 @@
-# Plano: Trazer todos os cultos do domingo para a tela inicial
+# Plano: Permitir check-in até 24 horas após o culto
 
 ## Problema
 
-Hoje (domingo) só aparecem 4 cultos no painel: CBKIDS Manhã (08:30), Domingo - Manhã (08:30), CBKIDS Noite (19:00) e Domingo - Noite (19:00). Mas a igreja tem mais cultos no domingo (ex: o culto da manhã às 10:30 e/ou outros horários) que não estão sendo exibidos.
+Hoje, a página de Check-in (`/checkin`) e o Totem facial (`/face-checkin`) usam o hook `useTodaysServices`, que filtra **apenas cultos do dia atual** (00:00 até 23:59 de hoje). Resultado: assim que o relógio vira meia-noite, o culto da noite anterior some do seletor e ninguém consegue registrar check-in retroativo.
 
-## Causa raiz
-
-Duas coisas combinadas:
-
-1. **Constraint de deduplicação errada.** Na correção anterior (para evitar cultos duplicados), foi criada uma constraint UNIQUE em `(service_type_name, scheduled_at)` na tabela `services`, e a sincronização usa `onConflict: 'service_type_name,scheduled_at'`. Isso é correto para evitar duplicatas, **mas** impede que dois planos legítimos do mesmo `service_type_name` (ex: "Domingo - Manhã" às 08:30 e às 10:30) coexistam quando deveriam — se cair a mesma chave por qualquer motivo, um sobrescreve o outro. O problema **real** é que cultos como "Domingo - Manhã 10:30" provavelmente nunca foram criados porque a migração de merge anterior os mesclou ao culto de 08:30, ou o sync não está pegando todos os planos.
-
-2. **Sincronização parada há 2 dias.** A última `sync_logs` é de 24/04 às 16:37. O cron job está ativo (`*/30 * * * *`) mas a função `sync-planning-center-auto` aparentemente não está rodando ou falhando silenciosamente — não há log de erro registrado, mas também nenhum log de sucesso recente.
+A solicitação é manter os cultos disponíveis para check-in até **24 horas após** o horário do culto.
 
 ## Solução
 
-### 1. Investigar o sync automático
-- Ler logs da edge function `sync-planning-center-auto` das últimas 48h para descobrir por que parou.
-- Se houver erro, corrigir.
+Criar um novo hook `useCheckinEligibleServices` em `src/hooks/useServices.ts` que retorna cultos cujo `scheduled_at` esteja entre **24h atrás** e **o fim do dia atual** (cultos futuros do dia continuam aparecendo normalmente).
 
-### 2. Rodar sincronização manual completa
-- Disparar a sync principal para puxar todos os planos atuais do Planning Center (futuros + 7 dias passados), garantindo que cultos do domingo de hoje cheguem ao banco.
+Trocar o uso de `useTodaysServices` para `useCheckinEligibleServices` apenas nas duas telas de check-in. O Dashboard continua usando `useTodaysServices` (lá o sentido é literalmente "cultos de hoje").
 
-### 3. Corrigir a constraint de deduplicação
-A constraint atual `(service_type_name, scheduled_at)` é apropriada para impedir duplicatas, mas o problema é se o Planning Center tem dois planos diferentes do mesmo tipo no mesmo horário (raro). O risco real está em cultos como "Domingo Manhã 10:30" terem sido descartados na migração de merge porque foram considerados duplicatas de "Domingo Manhã 08:30" (não devem ter sido — horários diferentes).
+## Detalhes técnicos
 
-Após o sync manual, conferir no banco se todos os horários esperados estão presentes. Se ainda faltar algum, investigar caso a caso comparando com o Planning Center.
+**1. `src/hooks/useServices.ts`** — adicionar hook novo (sem mexer no existente):
 
-### 4. Garantir que o cron job continue rodando
-- Verificar se o `pg_cron` está executando.
-- Validar a última execução via `cron.job_run_details`.
+```ts
+export function useCheckinEligibleServices() {
+  const now = new Date();
+  const lowerBound = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-## Resultado esperado
+  return useQuery({
+    queryKey: ['services', 'checkin-eligible'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .gte('scheduled_at', lowerBound)
+        .lt('scheduled_at', endOfToday)
+        .order('scheduled_at', { ascending: true });
+      if (error) throw error;
+      return data as Service[];
+    },
+    refetchInterval: 5 * 60 * 1000, // re-checa a cada 5min para a janela deslizar
+  });
+}
+```
 
-- Todos os cultos do domingo (manhã 08:30, manhã 10:30, noite, etc.) aparecem na lista "Cultos de Hoje".
-- Sincronização automática volta a rodar a cada 30 minutos sem falhar.
+**2. `src/pages/CheckinPage.tsx`** — trocar `useTodaysServices` por `useCheckinEligibleServices`. Ajustar:
+- Mensagem "Nenhum culto hoje" → "Nenhum culto disponível para check-in"
+- No `SelectItem`, mostrar a data + hora quando o culto for de ontem (ex.: `25/04 19:00`), e só `HH:mm` quando for de hoje, para o líder distinguir.
 
-## Arquivos / áreas envolvidos (técnico)
+**3. `src/pages/FaceCheckinKioskPage.tsx`** — mesma troca de hook e mesma melhoria de label nos itens do select.
 
-- Logs: `sync-planning-center-auto` edge function logs.
-- Banco: `cron.job_run_details`, `sync_logs`, `services`.
-- Edge function: `supabase/functions/sync-planning-center-auto/index.ts` (se houver erro a corrigir).
-- Não deve precisar mexer em frontend — `useTodaysServices` já busca tudo do dia corretamente.
+**4. Dashboard** — **não muda nada**. Continua usando `useTodaysServices` (faz sentido como visão "cultos de hoje").
+
+## Resultado
+
+- Após o culto das 19:00 de domingo, o líder consegue lançar check-in pelos próximos 24h (até 19:00 de segunda).
+- Cultos do dia atual continuam aparecendo normalmente, antes e depois do horário.
+- A janela "desliza" automaticamente: a cada 5 minutos o hook revalida e um culto que passou das 24h sai da lista sem precisar dar refresh.
+- Dashboard preserva o comportamento atual.
