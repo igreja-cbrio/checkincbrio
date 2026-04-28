@@ -36,7 +36,7 @@ export default function CheckinPage() {
     avatarUrl?: string | null;
   } | null>(null);
   
-  const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
+  const { data: todaysServices, isLoading: loadingServices } = useCheckinEligibleServices();
   const { data: schedules, isLoading: loadingSchedules } = useServiceSchedules(selectedServiceId);
   const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
