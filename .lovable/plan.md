@@ -1,55 +1,59 @@
-# Plano: Permitir check-in até 24 horas após o culto
+# Plano: Inativos por Escala — incluir histórico antigo e janela curta (mês atual)
 
 ## Problema
 
-Hoje, a página de Check-in (`/checkin`) e o Totem facial (`/face-checkin`) usam o hook `useTodaysServices`, que filtra **apenas cultos do dia atual** (00:00 até 23:59 de hoje). Resultado: assim que o relógio vira meia-noite, o culto da noite anterior some do seletor e ninguém consegue registrar check-in retroativo.
+Na aba **Relatórios → Voluntários Inativos** existem dois pontos a corrigir:
 
-A solicitação é manter os cultos disponíveis para check-in até **24 horas após** o horário do culto.
+**1. "Por Escala" não está enxergando inativos do mês atual.**
+A lógica atual considera inativo quem teve a **última escala** antes do cutoff. Resultado: alguém escalado nos últimos 2 meses, mas que não está escalado neste mês, **não aparece** — porque a última escala é recente. O filtro mais curto é "2 meses", e mesmo ele só captura quem ficou 2+ meses sem ser escalado.
+
+O usuário quer ver, por exemplo, quem foi escalado em fevereiro/março mas **em abril (mês atual) não tem nenhuma escala**. Hoje isso é impossível.
+
+**2. Histórico do ano passado.**
+A função `fetchAllSchedules` já busca todas as escalas paginando (sem filtro de data). Verifiquei o banco: existem 674 escalas com mais de 1 ano e elas estão sendo carregadas. O problema **não é a busca** — é a lógica de classificação do item 1, que ignora pessoas com escala recente. Garantir que continue sem filtro de data resolve "ver histórico antigo".
 
 ## Solução
 
-Criar um novo hook `useCheckinEligibleServices` em `src/hooks/useServices.ts` que retorna cultos cujo `scheduled_at` esteja entre **24h atrás** e **o fim do dia atual** (cultos futuros do dia continuam aparecendo normalmente).
+### A. Mudar a semântica do critério "Por Escala"
 
-Trocar o uso de `useTodaysServices` para `useCheckinEligibleServices` apenas nas duas telas de check-in. O Dashboard continua usando `useTodaysServices` (lá o sentido é literalmente "cultos de hoje").
+Em vez de "última escala antes do cutoff", passar a usar **"sem nenhuma escala dentro da janela [cutoff → hoje], mas com escala anterior ao cutoff"**.
+
+Tradução prática (com filtro = "1 mês"):
+- Pega todo mundo que já teve escala alguma vez.
+- Remove quem tem pelo menos 1 escala nos últimos 30 dias.
+- Sobra: voluntários com histórico que sumiram da escala neste mês. ✅
+
+A `last_activity_date` exibida e os `months_inactive` continuam baseados na **última escala real** (que pode ser de meses atrás, ou de 20 dias atrás se a janela for "1 mês").
+
+### B. Adicionar opção "1 Mês"
+
+Novo período `'1month'` (= 30 dias) no filtro, virando o padrão para visualizar inativos do mês atual.
+
+### C. Critério "Por Check-in" — manter mesma melhoria
+
+Aplicar a mesma lógica: "sem check-in na janela, mas com escala/check-in anterior". Assim "1 mês por check-in" mostra quem foi escalado nos últimos meses mas não fez check-in este mês.
 
 ## Detalhes técnicos
 
-**1. `src/hooks/useServices.ts`** — adicionar hook novo (sem mexer no existente):
+**1. `src/hooks/useInactiveVolunteers.ts`**
 
-```ts
-export function useCheckinEligibleServices() {
-  const now = new Date();
-  const lowerBound = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+- Adicionar `'1month'` ao tipo `InactivityPeriod` e ao mapa `getMonthsFromPeriod` (1).
+- Mudar `cutoffDate` para usar dias quando for `1month` (`subDays(now, 30)`) — mais preciso que `subMonths(now, 1)`.
+- Reescrever o bloco de classificação:
+  - Acumular `last_activity_date` (último check-in para o critério checkin; última escala para o critério schedule), igual hoje.
+  - **Acumular também** `has_activity_in_window` (boolean): true se o voluntário tem qualquer escala/check-in com data >= cutoffDate.
+  - Voluntário entra no resultado quando: tem alguma atividade passada (last_activity existe) **E** `has_activity_in_window === false`.
+- Manter o cálculo de `months_inactive` a partir da última atividade real.
 
-  return useQuery({
-    queryKey: ['services', 'checkin-eligible'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .gte('scheduled_at', lowerBound)
-        .lt('scheduled_at', endOfToday)
-        .order('scheduled_at', { ascending: true });
-      if (error) throw error;
-      return data as Service[];
-    },
-    refetchInterval: 5 * 60 * 1000, // re-checa a cada 5min para a janela deslizar
-  });
-}
-```
+**2. `src/pages/ReportsPage.tsx`**
 
-**2. `src/pages/CheckinPage.tsx`** — trocar `useTodaysServices` por `useCheckinEligibleServices`. Ajustar:
-- Mensagem "Nenhum culto hoje" → "Nenhum culto disponível para check-in"
-- No `SelectItem`, mostrar a data + hora quando o culto for de ontem (ex.: `25/04 19:00`), e só `HH:mm` quando for de hoje, para o líder distinguir.
+- Adicionar `{ value: '1month', label: '1 Mês' }` no início de `inactivePeriodOptions`.
+- Mudar `useState<string>('4months')` para `useState<string>('1month')` como padrão (faz mais sentido para uso operacional dos líderes).
 
-**3. `src/pages/FaceCheckinKioskPage.tsx`** — mesma troca de hook e mesma melhoria de label nos itens do select.
-
-**4. Dashboard** — **não muda nada**. Continua usando `useTodaysServices` (faz sentido como visão "cultos de hoje").
+**3. Componente `InactiveVolunteersTab.tsx`** — sem mudanças, apenas consome o hook.
 
 ## Resultado
 
-- Após o culto das 19:00 de domingo, o líder consegue lançar check-in pelos próximos 24h (até 19:00 de segunda).
-- Cultos do dia atual continuam aparecendo normalmente, antes e depois do horário.
-- A janela "desliza" automaticamente: a cada 5 minutos o hook revalida e um culto que passou das 24h sai da lista sem precisar dar refresh.
-- Dashboard preserva o comportamento atual.
+- Filtro "1 Mês" + "Por Escala" → mostra quem tem histórico de escala mas não foi escalado neste mês.
+- Filtros maiores ("3 Meses", "6 Meses", etc.) continuam funcionando, agora com a semântica correta: "sem atividade dentro da janela, com histórico anterior".
+- Histórico antigo (ano passado) continua sendo carregado (já era) e agora é considerado como "atividade anterior" que qualifica a pessoa para aparecer no relatório.

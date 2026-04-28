@@ -1,8 +1,8 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subMonths } from 'date-fns';
+import { subMonths, subDays } from 'date-fns';
 
-export type InactivityPeriod = '2months' | '3months' | '4months' | '6months' | '1year';
+export type InactivityPeriod = '1month' | '2months' | '3months' | '4months' | '6months' | '1year';
 export type InactivityCriteria = 'checkin' | 'schedule';
 
 export interface InactiveVolunteer {
@@ -16,15 +16,17 @@ export interface InactiveVolunteer {
   months_inactive: number;
 }
 
-function getMonthsFromPeriod(period: InactivityPeriod): number {
-  const map: Record<InactivityPeriod, number> = {
+function getCutoffDate(period: InactivityPeriod): Date {
+  const now = new Date();
+  if (period === '1month') return subDays(now, 30);
+  const map: Record<Exclude<InactivityPeriod, '1month'>, number> = {
     '2months': 2,
     '3months': 3,
     '4months': 4,
     '6months': 6,
     '1year': 12,
   };
-  return map[period];
+  return subMonths(now, map[period]);
 }
 
 async function fetchAllSchedules(teamName?: string) {
