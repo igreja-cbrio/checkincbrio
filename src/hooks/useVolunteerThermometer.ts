@@ -206,7 +206,7 @@ export function useVolunteerThermometer(
           : 0;
       });
 
-      return classifyVolunteers(volunteerMap, periodDays, inactiveCutoff);
+      return classifyVolunteers(volunteerMap, periodDays);
     },
   });
 }
