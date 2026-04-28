@@ -93,18 +93,18 @@ async function fetchAllSchedulesInPeriod(startDate: string, endDate: string, tea
 
 function classifyVolunteers(
   volunteerMap: Map<string, Omit<VolunteerThermometerData, 'level'>>,
-  periodDays: number,
-  inactiveCutoff: Date
+  periodDays: number
 ): ThermometerSummary {
   const volunteers = Array.from(volunteerMap.values());
-  
+
   if (volunteers.length === 0) {
     return { very_active: 0, regular: 0, low: 0, inactive: 0, total: 0, maxSchedules: 0, volunteers: [] };
   }
 
+  // Thresholds based on check-ins per period (scaled by period length)
   const factor = Math.max(1, periodDays / 30);
-  const lowThreshold = Math.ceil(1 * factor);
-  const regularThreshold = Math.ceil(4 * factor);
+  const lowThreshold = Math.ceil(1 * factor);      // até este nº de check-ins => Pouco Ativo
+  const regularThreshold = Math.ceil(4 * factor);  // até este nº => Regular; acima => Muito Ativo
 
   let maxSchedules = 0;
 
@@ -112,14 +112,13 @@ function classifyVolunteers(
     if (vol.total_schedules > maxSchedules) maxSchedules = vol.total_schedules;
 
     let level: ActivityLevel;
-    
-    if (vol.last_activity_date && new Date(vol.last_activity_date) < inactiveCutoff) {
+
+    // Inativo = nenhum check-in no período (mesmo se foi escalado)
+    if (vol.total_checkins === 0) {
       level = 'inactive';
-    } else if (vol.total_schedules === 0) {
-      level = 'inactive';
-    } else if (vol.total_schedules <= lowThreshold) {
+    } else if (vol.total_checkins <= lowThreshold) {
       level = 'low';
-    } else if (vol.total_schedules <= regularThreshold) {
+    } else if (vol.total_checkins <= regularThreshold) {
       level = 'regular';
     } else {
       level = 'very_active';
@@ -131,10 +130,10 @@ function classifyVolunteers(
   const levelOrder: Record<ActivityLevel, number> = { very_active: 0, regular: 1, low: 2, inactive: 3 };
   classified.sort((a, b) => {
     if (a.level !== b.level) return levelOrder[a.level] - levelOrder[b.level];
-    return b.total_schedules - a.total_schedules;
+    return b.total_checkins - a.total_checkins;
   });
 
-  const summary: ThermometerSummary = {
+  return {
     very_active: classified.filter(v => v.level === 'very_active').length,
     regular: classified.filter(v => v.level === 'regular').length,
     low: classified.filter(v => v.level === 'low').length,
@@ -143,8 +142,6 @@ function classifyVolunteers(
     maxSchedules,
     volunteers: classified,
   };
-
-  return summary;
 }
 
 export function useVolunteerThermometer(
@@ -157,7 +154,6 @@ export function useVolunteerThermometer(
     queryFn: async () => {
       const { start, end } = getPeriodDates(period, customRange);
       const periodDays = differenceInDays(end, start) || 1;
-      const inactiveCutoff = subMonths(new Date(), 2);
 
       const schedules = await fetchAllSchedulesInPeriod(
         start.toISOString(),
@@ -210,7 +206,7 @@ export function useVolunteerThermometer(
           : 0;
       });
 
-      return classifyVolunteers(volunteerMap, periodDays, inactiveCutoff);
+      return classifyVolunteers(volunteerMap, periodDays);
     },
   });
 }
