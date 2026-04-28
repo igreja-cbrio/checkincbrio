@@ -169,19 +169,23 @@ export function VolunteerThermometer({ data }: Props) {
             )}
           </div>
 
-          <ToggleGroup
-            type="single"
-            value={filter}
-            onValueChange={(v) => v && setFilter(v as FilterValue)}
-            size="sm"
-            className="flex-wrap justify-start"
-          >
-            <ToggleGroupItem value="all" className="text-xs">Todos</ToggleGroupItem>
-            <ToggleGroupItem value="very_active" className="text-xs">Muito Ativo</ToggleGroupItem>
-            <ToggleGroupItem value="regular" className="text-xs">Regular</ToggleGroupItem>
-            <ToggleGroupItem value="low" className="text-xs">Pouco Ativo</ToggleGroupItem>
-            <ToggleGroupItem value="inactive" className="text-xs">Inativo</ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium">Filtrar:</span>
+            <ToggleGroup
+              type="single"
+              value={filter}
+              onValueChange={(v) => v && setFilter(v as FilterValue)}
+              size="sm"
+              variant="outline"
+              className="flex-wrap justify-start gap-1"
+            >
+              <ToggleGroupItem value="all" className="text-xs h-8 px-3">Todos</ToggleGroupItem>
+              <ToggleGroupItem value="very_active" className="text-xs h-8 px-3">Muito Ativo</ToggleGroupItem>
+              <ToggleGroupItem value="regular" className="text-xs h-8 px-3">Regular</ToggleGroupItem>
+              <ToggleGroupItem value="low" className="text-xs h-8 px-3">Pouco Ativo</ToggleGroupItem>
+              <ToggleGroupItem value="inactive" className="text-xs h-8 px-3">Inativo</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </CardHeader>
         <CardContent className="space-y-1">
           {filteredVolunteers.length === 0 ? (
