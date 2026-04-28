@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useTodaysServices } from '@/hooks/useServices';
+import { useCheckinEligibleServices } from '@/hooks/useServices';
 import { useServiceSchedules, useCheckIn, useScheduleByQrCode, useUnscheduledCheckIns, QrCodeResult } from '@/hooks/useSchedules';
 import { useSyncPlanningCenter } from '@/hooks/useSyncPlanningCenter';
 import { toast } from 'sonner';
