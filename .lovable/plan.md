@@ -1,59 +1,46 @@
-# Plano: Inativos por Escala — incluir histórico antigo e janela curta (mês atual)
+# Plano: Termômetro — nova lógica de inativo, filtro de status e cards clicáveis
 
-## Problema
+## Mudanças solicitadas
 
-Na aba **Relatórios → Voluntários Inativos** existem dois pontos a corrigir:
+1. **Inativo = quem nunca fez check-in dentro do período selecionado** (mesmo se foi escalado).
+2. **Filtro de status** (Muito Ativo, Regular, Pouco Ativo, Inativo) acima da lista.
+3. **Cards do topo viram botões**: clicar em "Inativo" filtra a lista para mostrar só os inativos.
 
-**1. "Por Escala" não está enxergando inativos do mês atual.**
-A lógica atual considera inativo quem teve a **última escala** antes do cutoff. Resultado: alguém escalado nos últimos 2 meses, mas que não está escalado neste mês, **não aparece** — porque a última escala é recente. O filtro mais curto é "2 meses", e mesmo ele só captura quem ficou 2+ meses sem ser escalado.
+## Lógica nova de classificação
 
-O usuário quer ver, por exemplo, quem foi escalado em fevereiro/março mas **em abril (mês atual) não tem nenhuma escala**. Hoje isso é impossível.
+Hoje a classificação usa `total_schedules` (escalas) e marca como inativo quem teve última atividade antes de um cutoff fixo de 2 meses. Vai virar:
 
-**2. Histórico do ano passado.**
-A função `fetchAllSchedules` já busca todas as escalas paginando (sem filtro de data). Verifiquei o banco: existem 674 escalas com mais de 1 ano e elas estão sendo carregadas. O problema **não é a busca** — é a lógica de classificação do item 1, que ignora pessoas com escala recente. Garantir que continue sem filtro de data resolve "ver histórico antigo".
+- Base de comparação passa a ser **`total_checkins`** (não escalas).
+- **Inativo**: `total_checkins === 0` no período.
+- **Pouco Ativo**: `total_checkins` entre 1 e `lowThreshold` (1 por mês escalado).
+- **Regular**: até `regularThreshold` (4 por mês).
+- **Muito Ativo**: acima disso.
 
-## Solução
+Os thresholds continuam escalando proporcionalmente ao tamanho do período (`factor = periodDays / 30`).
 
-### A. Mudar a semântica do critério "Por Escala"
+A barra de progresso e o "X/Y escalas" na lista são mantidos como info contextual, mas a classificação não depende mais do total de escalas.
 
-Em vez de "última escala antes do cutoff", passar a usar **"sem nenhuma escala dentro da janela [cutoff → hoje], mas com escala anterior ao cutoff"**.
+## UI: filtro de status + cards clicáveis
 
-Tradução prática (com filtro = "1 mês"):
-- Pega todo mundo que já teve escala alguma vez.
-- Remove quem tem pelo menos 1 escala nos últimos 30 dias.
-- Sobra: voluntários com histórico que sumiram da escala neste mês. ✅
+**`VolunteerThermometer.tsx`**:
+- Adicionar `useState<ActivityLevel | 'all'>('all')` para o filtro selecionado.
+- Cards do topo viram `<button>` com `onClick` que alterna o filtro:
+  - clicar em "Inativo" → filtra Inativos
+  - clicar de novo no mesmo card → volta para "Todos"
+  - card ativo ganha um `ring-2 ring-primary` para indicar seleção
+- Acima da lista de voluntários, adicionar um `ToggleGroup` com 5 opções: Todos, Muito Ativo, Regular, Pouco Ativo, Inativo (sincronizado com o estado dos cards).
+- A lista renderiza `data.volunteers.filter(v => filter === 'all' || v.level === filter)`.
+- O título "Voluntários (N)" reflete a contagem filtrada, com indicação se há filtro ativo (ex.: `Voluntários (12 de 145) — Inativos`).
+- Botão "Limpar filtro" aparece quando filtro != 'all'.
 
-A `last_activity_date` exibida e os `months_inactive` continuam baseados na **última escala real** (que pode ser de meses atrás, ou de 20 dias atrás se a janela for "1 mês").
+## Arquivos alterados
 
-### B. Adicionar opção "1 Mês"
-
-Novo período `'1month'` (= 30 dias) no filtro, virando o padrão para visualizar inativos do mês atual.
-
-### C. Critério "Por Check-in" — manter mesma melhoria
-
-Aplicar a mesma lógica: "sem check-in na janela, mas com escala/check-in anterior". Assim "1 mês por check-in" mostra quem foi escalado nos últimos meses mas não fez check-in este mês.
-
-## Detalhes técnicos
-
-**1. `src/hooks/useInactiveVolunteers.ts`**
-
-- Adicionar `'1month'` ao tipo `InactivityPeriod` e ao mapa `getMonthsFromPeriod` (1).
-- Mudar `cutoffDate` para usar dias quando for `1month` (`subDays(now, 30)`) — mais preciso que `subMonths(now, 1)`.
-- Reescrever o bloco de classificação:
-  - Acumular `last_activity_date` (último check-in para o critério checkin; última escala para o critério schedule), igual hoje.
-  - **Acumular também** `has_activity_in_window` (boolean): true se o voluntário tem qualquer escala/check-in com data >= cutoffDate.
-  - Voluntário entra no resultado quando: tem alguma atividade passada (last_activity existe) **E** `has_activity_in_window === false`.
-- Manter o cálculo de `months_inactive` a partir da última atividade real.
-
-**2. `src/pages/ReportsPage.tsx`**
-
-- Adicionar `{ value: '1month', label: '1 Mês' }` no início de `inactivePeriodOptions`.
-- Mudar `useState<string>('4months')` para `useState<string>('1month')` como padrão (faz mais sentido para uso operacional dos líderes).
-
-**3. Componente `InactiveVolunteersTab.tsx`** — sem mudanças, apenas consome o hook.
+1. **`src/hooks/useVolunteerThermometer.ts`** — reescrever `classifyVolunteers` para usar check-ins; remover o parâmetro `inactiveCutoff` (não é mais usado); remover `subMonths` import se ficar sem uso; remover a passagem de `inactiveCutoff` no `useQuery`.
+2. **`src/components/reports/VolunteerThermometer.tsx`** — adicionar estado de filtro, transformar cards em botões clicáveis com destaque visual, adicionar `ToggleGroup` acima da lista, filtrar voluntários renderizados, atualizar título com contagem filtrada e botão "Limpar".
 
 ## Resultado
 
-- Filtro "1 Mês" + "Por Escala" → mostra quem tem histórico de escala mas não foi escalado neste mês.
-- Filtros maiores ("3 Meses", "6 Meses", etc.) continuam funcionando, agora com a semântica correta: "sem atividade dentro da janela, com histórico anterior".
-- Histórico antigo (ano passado) continua sendo carregado (já era) e agora é considerado como "atividade anterior" que qualifica a pessoa para aparecer no relatório.
+- Aba **Termômetro** com filtro "1 mês": quem foi escalado mas não compareceu nenhuma vez aparece como **Inativo**.
+- Líder clica no card vermelho "Inativo" → lista filtra para mostrar só esses voluntários.
+- Pode também usar o ToggleGroup em cima da lista para alternar entre os 4 status + Todos.
+- Cards do topo destacam visualmente qual filtro está ativo.
