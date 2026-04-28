@@ -140,15 +140,22 @@ export default function FaceCheckinKioskPage() {
                   <SelectValue placeholder="Selecione o culto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {todaysServices.map((service) => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.name} - {format(new Date(service.scheduled_at), 'HH:mm', { locale: ptBR })}
-                    </SelectItem>
-                  ))}
+                  {todaysServices.map((service) => {
+                    const serviceDate = new Date(service.scheduled_at);
+                    const isToday = serviceDate.toDateString() === new Date().toDateString();
+                    const label = isToday
+                      ? format(serviceDate, 'HH:mm', { locale: ptBR })
+                      : format(serviceDate, 'dd/MM HH:mm', { locale: ptBR });
+                    return (
+                      <SelectItem key={service.id} value={service.id}>
+                        {service.name} - {label}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             ) : (
-              <p className="text-sm text-muted-foreground">Nenhum culto hoje</p>
+              <p className="text-sm text-muted-foreground">Nenhum culto disponível para check-in</p>
             )}
           </div>
           <Button variant="outline" size="sm" onClick={() => setTrainingDialogOpen(true)} className="gap-1.5">
