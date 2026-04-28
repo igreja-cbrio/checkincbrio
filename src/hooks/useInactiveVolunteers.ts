@@ -87,9 +87,15 @@ export function useInactiveVolunteers(period: InactivityPeriod, criteria: Inacti
         total_checkins: number;
       }>();
 
+      const now = new Date();
+
       schedules.forEach((schedule: any) => {
         const key = schedule.planning_center_person_id;
         const serviceDate = new Date(schedule.service.scheduled_at);
+
+        // Ignore future schedules — they don't count as "activity"
+        if (serviceDate > now) return;
+
         const hasCheckin = schedule.check_in && schedule.check_in.length > 0;
         const checkinDate = hasCheckin ? new Date(schedule.check_in[0].checked_in_at) : null;
 
@@ -117,17 +123,14 @@ export function useInactiveVolunteers(period: InactivityPeriod, criteria: Inacti
           }
         }
 
-        if (serviceDate > vol.last_schedule_date) {
+        // Update last_team based on most recent past schedule (check BEFORE updating last_schedule_date)
+        if (serviceDate >= vol.last_schedule_date) {
+          vol.last_team = schedule.team_name;
           vol.last_schedule_date = serviceDate;
         }
 
         if (serviceDate < vol.first_schedule_date) {
           vol.first_schedule_date = serviceDate;
-        }
-
-        // Update last_team based on most recent schedule
-        if (serviceDate >= vol.last_schedule_date) {
-          vol.last_team = schedule.team_name;
         }
 
         if (schedule.volunteer_id && !vol.volunteer_id) {
@@ -136,17 +139,16 @@ export function useInactiveVolunteers(period: InactivityPeriod, criteria: Inacti
       });
 
       // Filter by cutoff and calculate months inactive
-      const now = new Date();
       const result: InactiveVolunteer[] = [];
 
       volunteerMap.forEach((vol) => {
         let referenceDate: Date;
 
         if (criteria === 'checkin') {
-          // Use last check-in date; if never checked in, use first schedule date
-          referenceDate = vol.last_checkin_date || vol.first_schedule_date;
+          // Use last check-in; fallback to LAST schedule (not first) — represents most recent known activity
+          referenceDate = vol.last_checkin_date || vol.last_schedule_date;
         } else {
-          // Use last schedule date (original behavior)
+          // Use last (past) schedule date
           referenceDate = vol.last_schedule_date;
         }
 
