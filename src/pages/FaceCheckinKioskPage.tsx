@@ -34,7 +34,7 @@ export default function FaceCheckinKioskPage() {
   const [activeTab, setActiveTab] = useState('list');
   const [trainingDialogOpen, setTrainingDialogOpen] = useState(false);
 
-  const { data: todaysServices, isLoading: loadingServices } = useTodaysServices();
+  const { data: todaysServices, isLoading: loadingServices } = useCheckinEligibleServices();
   const { data: schedules } = useServiceSchedules(selectedServiceId);
   const { data: unscheduledCheckIns } = useUnscheduledCheckIns(selectedServiceId);
   const checkInMutation = useCheckIn();
