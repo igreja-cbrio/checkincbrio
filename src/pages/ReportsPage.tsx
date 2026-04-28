@@ -116,6 +116,7 @@ export default function ReportsPage() {
   ];
 
   const inactivePeriodOptions = [
+    { value: '1month', label: '1 Mês' },
     { value: '2months', label: '2 Meses' },
     { value: '3months', label: '3 Meses' },
     { value: '4months', label: '4 Meses' },
