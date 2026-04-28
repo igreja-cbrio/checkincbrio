@@ -41,7 +41,7 @@ export default function ReportsPage() {
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
-  const [inactivePeriod, setInactivePeriod] = useState<string>('4months');
+  const [inactivePeriod, setInactivePeriod] = useState<string>('1month');
   const [inactivityCriteria, setInactivityCriteria] = useState<InactivityCriteria>('checkin');
   
   const { data: teams, isLoading: loadingTeams } = useTeams();
@@ -116,6 +116,7 @@ export default function ReportsPage() {
   ];
 
   const inactivePeriodOptions = [
+    { value: '1month', label: '1 Mês' },
     { value: '2months', label: '2 Meses' },
     { value: '3months', label: '3 Meses' },
     { value: '4months', label: '4 Meses' },
