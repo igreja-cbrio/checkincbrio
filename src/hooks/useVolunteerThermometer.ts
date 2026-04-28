@@ -154,7 +154,6 @@ export function useVolunteerThermometer(
     queryFn: async () => {
       const { start, end } = getPeriodDates(period, customRange);
       const periodDays = differenceInDays(end, start) || 1;
-      const inactiveCutoff = subMonths(new Date(), 2);
 
       const schedules = await fetchAllSchedulesInPeriod(
         start.toISOString(),
