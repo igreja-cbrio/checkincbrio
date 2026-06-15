@@ -78,12 +78,17 @@ export default function ReportsPage() {
     teamFilter,
     thermometerPeriod === 'custom' ? thermometerCustomRange : undefined
   );
+  const { data: servedData, isLoading: loadingServed } = useVolunteersServed(
+    servedPeriod,
+    teamFilter,
+    servedPeriod === 'custom' ? servedCustomRange : undefined
+  );
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer || loadingServed;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
