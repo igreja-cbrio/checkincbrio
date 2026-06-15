@@ -181,6 +181,10 @@ export default function ReportsPage() {
             <TabsList>
               <TabsTrigger value="weekly">Relatório Semanal</TabsTrigger>
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="served">
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Quem Serviu
+              </TabsTrigger>
               <TabsTrigger value="inactive">
                 <UserX className="h-4 w-4 mr-1" />
                 Inativos
@@ -192,6 +196,21 @@ export default function ReportsPage() {
             </TabsList>
 
             {activeTab === 'weekly' ? (
+              <PeriodFilter
+                period={weeklyPeriod}
+                onPeriodChange={(v) => setWeeklyPeriod(v as WeeklyPeriod)}
+                customRange={weeklyCustomRange}
+                onCustomRangeChange={setWeeklyCustomRange}
+                periodOptions={weeklyPeriodOptions}
+              />
+            ) : activeTab === 'served' ? (
+              <PeriodFilter
+                period={servedPeriod}
+                onPeriodChange={(v) => setServedPeriod(v as ServedPeriod)}
+                customRange={servedCustomRange}
+                onCustomRangeChange={setServedCustomRange}
+                periodOptions={servedPeriodOptions}
+              />
               <PeriodFilter
                 period={weeklyPeriod}
                 onPeriodChange={(v) => setWeeklyPeriod(v as WeeklyPeriod)}
