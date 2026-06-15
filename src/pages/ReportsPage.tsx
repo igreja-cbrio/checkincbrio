@@ -211,13 +211,6 @@ export default function ReportsPage() {
                 onCustomRangeChange={setServedCustomRange}
                 periodOptions={servedPeriodOptions}
               />
-              <PeriodFilter
-                period={weeklyPeriod}
-                onPeriodChange={(v) => setWeeklyPeriod(v as WeeklyPeriod)}
-                customRange={weeklyCustomRange}
-                onCustomRangeChange={setWeeklyCustomRange}
-                periodOptions={weeklyPeriodOptions}
-              />
             ) : activeTab === 'thermometer' ? (
               <PeriodFilter
                 period={thermometerPeriod}
