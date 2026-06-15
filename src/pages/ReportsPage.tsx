@@ -9,7 +9,7 @@ import { useAttendanceReport, useServiceReport, ReportPeriod } from '@/hooks/use
 import { useUnscheduledReport, UnscheduledPeriod } from '@/hooks/useUnscheduledReport';
 import { useWeeklyReport, WeeklyPeriod } from '@/hooks/useWeeklyReport';
 import { useTeams } from '@/hooks/useTeams';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX, Thermometer } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX, Thermometer, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,6 +19,8 @@ import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
 import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
 import { VolunteerThermometer } from '@/components/reports/VolunteerThermometer';
 import { useVolunteerThermometer, ThermometerPeriod } from '@/hooks/useVolunteerThermometer';
+import { VolunteersServedTab } from '@/components/reports/VolunteersServedTab';
+import { useVolunteersServed, ServedPeriod } from '@/hooks/useVolunteersServed';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
