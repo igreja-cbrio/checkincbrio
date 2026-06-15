@@ -37,6 +37,37 @@ export function VolunteersServedTab({ data }: Props) {
     );
   }, [data.volunteers, search]);
 
+  const handleExportExcel = () => {
+    const summaryRows = filtered.map((v) => ({
+      Voluntário: v.volunteer_name,
+      Equipes: v.teams.join(', '),
+      'Total de Check-ins': v.total_checkins,
+    }));
+
+    const detailRows: any[] = [];
+    filtered.forEach((v) => {
+      v.services.forEach((svc) => {
+        detailRows.push({
+          Voluntário: v.volunteer_name,
+          Culto: svc.service_name,
+          Data: format(new Date(svc.scheduled_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
+          Equipe: svc.team_name || '',
+        });
+      });
+    });
+
+    const wb = XLSX.utils.book_new();
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumo');
+
+    const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Detalhado');
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    XLSX.writeFile(wb, `quem-serviu-${today}.xlsx`);
+  };
+
   if (data.total_volunteers === 0) {
     return (
       <Card>
