@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import {
   Accordion,
   AccordionContent,
@@ -10,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Calendar, History, Search, Users, CheckCircle2 } from 'lucide-react';
+import { Calendar, History, Search, Users, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { VolunteerServedSummary } from '@/hooks/useVolunteersServed';
@@ -35,6 +36,37 @@ export function VolunteersServedTab({ data }: Props) {
         v.teams.some((t) => t.toLowerCase().includes(q))
     );
   }, [data.volunteers, search]);
+
+  const handleExportExcel = () => {
+    const summaryRows = filtered.map((v) => ({
+      Voluntário: v.volunteer_name,
+      Equipes: v.teams.join(', '),
+      'Total de Check-ins': v.total_checkins,
+    }));
+
+    const detailRows: any[] = [];
+    filtered.forEach((v) => {
+      v.services.forEach((svc) => {
+        detailRows.push({
+          Voluntário: v.volunteer_name,
+          Culto: svc.service_name,
+          Data: format(new Date(svc.scheduled_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
+          Equipe: svc.team_name || '',
+        });
+      });
+    });
+
+    const wb = XLSX.utils.book_new();
+
+    const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumo');
+
+    const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Detalhado');
+
+    const today = format(new Date(), 'yyyy-MM-dd');
+    XLSX.writeFile(wb, `quem-serviu-${today}.xlsx`);
+  };
 
   if (data.total_volunteers === 0) {
     return (
@@ -75,6 +107,10 @@ export function VolunteersServedTab({ data }: Props) {
               Quem Serviu ({filtered.length}
               {filtered.length !== data.total_volunteers && ` de ${data.total_volunteers}`})
             </CardTitle>
+            <Button variant="outline" size="sm" onClick={handleExportExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
