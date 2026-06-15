@@ -127,6 +127,13 @@ export default function ReportsPage() {
     { value: '6months', label: '6 Meses' },
   ];
 
+  const servedPeriodOptions = [
+    { value: 'month', label: 'Mês Atual' },
+    { value: '3months', label: '3 Meses' },
+    { value: '6months', label: '6 Meses' },
+    { value: '1year', label: '1 Ano' },
+  ];
+
   const inactivePeriodOptions = [
     { value: '1month', label: '1 Mês' },
     { value: '2months', label: '2 Meses' },
