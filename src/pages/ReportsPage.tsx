@@ -420,6 +420,11 @@ export default function ReportsPage() {
             )}
           </TabsContent>
 
+          {/* Volunteers Served Tab */}
+          <TabsContent value="served" className="mt-0">
+            {servedData && <VolunteersServedTab data={servedData} />}
+          </TabsContent>
+
           {/* Inactive Volunteers Tab */}
           <TabsContent value="inactive" className="mt-0">
             <InactiveVolunteersTab teamFilter={teamFilter} inactivityPeriod={inactivePeriod as any} criteria={inactivityCriteria} onCriteriaChange={setInactivityCriteria} />
