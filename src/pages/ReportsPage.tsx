@@ -9,7 +9,7 @@ import { useAttendanceReport, useServiceReport, ReportPeriod } from '@/hooks/use
 import { useUnscheduledReport, UnscheduledPeriod } from '@/hooks/useUnscheduledReport';
 import { useWeeklyReport, WeeklyPeriod } from '@/hooks/useWeeklyReport';
 import { useTeams } from '@/hooks/useTeams';
-import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX, Thermometer } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, AlertTriangle, History, Filter, UserX, Thermometer, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -19,6 +19,8 @@ import { PeriodFilter, DateRange } from '@/components/reports/PeriodFilter';
 import { InactiveVolunteersTab } from '@/components/reports/InactiveVolunteersTab';
 import { VolunteerThermometer } from '@/components/reports/VolunteerThermometer';
 import { useVolunteerThermometer, ThermometerPeriod } from '@/hooks/useVolunteerThermometer';
+import { VolunteersServedTab } from '@/components/reports/VolunteersServedTab';
+import { useVolunteersServed, ServedPeriod } from '@/hooks/useVolunteersServed';
 
 export default function ReportsPage() {
   const { isLeader } = useAuth();
@@ -38,6 +40,11 @@ export default function ReportsPage() {
   });
   const [thermometerPeriod, setThermometerPeriod] = useState<ThermometerPeriod>('month');
   const [thermometerCustomRange, setThermometerCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
+  const [servedPeriod, setServedPeriod] = useState<ServedPeriod>('month');
+  const [servedCustomRange, setServedCustomRange] = useState<DateRange>({
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
@@ -71,12 +78,17 @@ export default function ReportsPage() {
     teamFilter,
     thermometerPeriod === 'custom' ? thermometerCustomRange : undefined
   );
+  const { data: servedData, isLoading: loadingServed } = useVolunteersServed(
+    servedPeriod,
+    teamFilter,
+    servedPeriod === 'custom' ? servedCustomRange : undefined
+  );
 
   if (!isLeader) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer;
+  const isLoading = loadingAttendance || loadingServices || loadingUnscheduled || loadingTeams || loadingWeekly || loadingThermometer || loadingServed;
 
   // Calculate summary stats
   const totalScheduled = serviceData?.reduce((acc, s) => acc + s.total_scheduled, 0) || 0;
@@ -113,6 +125,13 @@ export default function ReportsPage() {
     { value: 'month', label: 'Mês Atual' },
     { value: '3months', label: '3 Meses' },
     { value: '6months', label: '6 Meses' },
+  ];
+
+  const servedPeriodOptions = [
+    { value: 'month', label: 'Mês Atual' },
+    { value: '3months', label: '3 Meses' },
+    { value: '6months', label: '6 Meses' },
+    { value: '1year', label: '1 Ano' },
   ];
 
   const inactivePeriodOptions = [
@@ -162,6 +181,10 @@ export default function ReportsPage() {
             <TabsList>
               <TabsTrigger value="weekly">Relatório Semanal</TabsTrigger>
               <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+              <TabsTrigger value="served">
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                Quem Serviu
+              </TabsTrigger>
               <TabsTrigger value="inactive">
                 <UserX className="h-4 w-4 mr-1" />
                 Inativos
@@ -179,6 +202,14 @@ export default function ReportsPage() {
                 customRange={weeklyCustomRange}
                 onCustomRangeChange={setWeeklyCustomRange}
                 periodOptions={weeklyPeriodOptions}
+              />
+            ) : activeTab === 'served' ? (
+              <PeriodFilter
+                period={servedPeriod}
+                onPeriodChange={(v) => setServedPeriod(v as ServedPeriod)}
+                customRange={servedCustomRange}
+                onCustomRangeChange={setServedCustomRange}
+                periodOptions={servedPeriodOptions}
               />
             ) : activeTab === 'thermometer' ? (
               <PeriodFilter
@@ -387,6 +418,11 @@ export default function ReportsPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Volunteers Served Tab */}
+          <TabsContent value="served" className="mt-0">
+            {servedData && <VolunteersServedTab data={servedData} />}
           </TabsContent>
 
           {/* Inactive Volunteers Tab */}
