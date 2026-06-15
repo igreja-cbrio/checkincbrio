@@ -43,6 +43,11 @@ export default function ReportsPage() {
     startDate: subWeeks(new Date(), 1),
     endDate: new Date(),
   });
+  const [servedPeriod, setServedPeriod] = useState<ServedPeriod>('month');
+  const [servedCustomRange, setServedCustomRange] = useState<DateRange>({
+    startDate: subWeeks(new Date(), 1),
+    endDate: new Date(),
+  });
   const [inactivePeriod, setInactivePeriod] = useState<string>('1month');
   const [inactivityCriteria, setInactivityCriteria] = useState<InactivityCriteria>('checkin');
   
